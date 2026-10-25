@@ -1,0 +1,38 @@
+@use 'variables' as *;
+
+:root { --accent: #{$blue}; }
+
+*, *::before, *::after { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { margin: 0; background: $bg; color: $ink; font: 400 16px/1.5 $font; -webkit-font-smoothing: antialiased; }
+img { display: block; max-width: 100%; }
+a { color: var(--accent); }
+h1, h2, h3 { margin: 0 0 .5em; font-weight: 800; line-height: 1.2; }
+h1 { font-size: clamp(1.7rem, 3.6vw, 2.5rem); }
+h2 { font-size: 1.5rem; }
+h3 { font-size: 1.1rem; }
+p { margin: 0 0 1em; }
+button, select, input { font: inherit; color: inherit; }
+
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; transition: none !important; animation: none !important; } }
+
+.container { width: min(100% - 2rem, $container); margin-inline: auto; }
+.muted { color: $muted; }
+
+.img-placeholder {
+  display: grid; place-items: center; width: 100%; height: 100%; min-height: 100px; color: $muted; font-size: .9rem;
+  background: repeating-linear-gradient(135deg, #e3f0f9, #e3f0f9 12px, #ecf5fb 12px, #ecf5fb 24px);
+  &.tinted { background: linear-gradient(135deg, hsl(var(--hue), 70%, 88%), hsl(calc(var(--hue) + 40), 75%, 94%)); color: hsl(var(--hue), 30%, 40%); }
+}
+
+.btn {
+  display: inline-block; padding: .65em 1.4em; border-radius: 12px; border: 0; cursor: pointer; text-align: center;
+  background: var(--accent); color: #fff; text-decoration: none; font-weight: 800; transition: background .15s;
+  &--orange { background: $orange; &:hover { background: $orange-dark; } }
+}
+.link-btn { border: 0; background: none; color: $blue; cursor: pointer; font-weight: 600; padding: 0; }
+.rating { display: inline-grid; place-items: center; min-width: 38px; height: 26px; padding: 0 .4rem; border-radius: 8px 8px 8px 2px; background: $green; color: #fff; font-weight: 800; font-size: .9rem; }
+
+.stars { display: inline-flex; gap: 2px;
+  svg { width: 15px; height: 15px; fill: #d5e1ea; &.is-on { fill: $star; } } }

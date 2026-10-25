@@ -1,0 +1,37 @@
+# Стенд: nginx (балансировщик + статика сайта) -> 3 контейнера API (по 2 воркера) -> PostgreSQL.
+#   npm run build            # собрать сайт в dist/
+#   docker compose up --build
+# Откройте http://localhost:8080
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: hotels
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-hotels}
+      POSTGRES_DB: hotels
+    volumes: ["pgdata:/var/lib/postgresql/data"]
+    healthcheck: { test: ["CMD-SHELL", "pg_isready -U hotels"], interval: 5s, timeout: 3s, retries: 10 }
+
+  api:
+    build: ./server
+    environment:
+      DATABASE_URL: postgresql://hotels:${POSTGRES_PASSWORD:-hotels}@db:5432/hotels
+      HOTELS_FILE: /data/hotels.json
+      MODEL_URL: ${MODEL_URL:-}
+      MODEL_NAME: ${MODEL_NAME:-default}
+      MODEL_API_KEY: ${MODEL_API_KEY:-}
+    volumes: ["./public/data:/data:ro"]
+    depends_on: { db: { condition: service_healthy } }
+    healthcheck: { test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://localhost:8000/readyz')"], interval: 10s, timeout: 3s, retries: 3 }
+    restart: unless-stopped
+    deploy: { replicas: 3 }
+
+  nginx:
+    image: nginx:alpine
+    ports: ["8080:80"]
+    volumes: ["./nginx.conf:/etc/nginx/conf.d/default.conf:ro", "./dist:/usr/share/nginx/html:ro"]
+    depends_on: [api]
+    restart: unless-stopped
+
+volumes:
+  pgdata:

@@ -1,0 +1,40 @@
+@use 'variables' as *;
+
+.home { display: grid; gap: 1.5rem; align-items: start; @include up($bp-md) { grid-template-columns: 260px 1fr; } }
+
+.filters { background: $surface; border-radius: $radius-lg; padding: 1.1rem 1.2rem; box-shadow: $shadow;
+  @include up($bp-md) { position: sticky; top: 76px; }
+  &__head { display: flex; justify-content: space-between; align-items: center; h2 { font-size: 1.2rem; margin: 0; } }
+  fieldset { border: 0; padding: 0; margin: 1rem 0 0; }
+  legend { padding: 0; font-weight: 700; font-size: .9rem; margin-bottom: .4rem; }
+  select { width: 100%; padding: .55rem .7rem; border: 1px solid $line; border-radius: 10px; background: $surface; }
+  input[type='range'] { width: 100%; accent-color: $blue; } }
+.star-pick { display: flex; flex-wrap: wrap; gap: .4rem;
+  button { padding: .3rem .7rem; border: 1px solid $line; border-radius: 999px; background: $surface; cursor: pointer; font-weight: 700;
+    &.is-on { background: $blue; border-color: $blue; color: #fff; } } }
+
+.results__bar { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: .5rem; margin-bottom: 1rem;
+  p { margin: 0; font-weight: 700; }
+  label { display: flex; align-items: center; gap: .5rem; color: $muted; font-size: .9rem; }
+  select { padding: .45rem .7rem; border: 1px solid $line; border-radius: 10px; background: $surface; color: $ink; } }
+
+.list { display: grid; gap: .9rem; grid-template-columns: 1fr; @media (min-width: 1100px) { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+// Карточка: слева фото, справа текст, снизу строка с ценой. В ряду по 2 отеля (от 1100px)
+.hotel-card { display: grid; grid-template-columns: 150px 1fr; min-height: 190px; background: $surface; border-radius: $radius-lg;
+  box-shadow: $shadow; overflow: hidden; text-decoration: none; color: $ink; transition: box-shadow .2s;
+  &:hover { box-shadow: $shadow-hover; }
+  @include down($bp-sm) { grid-template-columns: 1fr; &__media { height: 160px; } }
+
+  &__media { overflow: hidden; img { width: 100%; height: 100%; object-fit: cover; } }
+  &__body { padding: .8rem 1.1rem; display: flex; flex-direction: column; justify-content: center; gap: .1rem; min-width: 0;
+    h3 { margin: 0; font-size: 1.1rem; } }
+  &__top { display: flex; align-items: center; gap: .6rem; }
+  &__place { margin: 0; color: $muted; font-size: .9rem; }
+  &__tagline { margin: 0; font-size: .9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  &__buy { grid-column: 1 / -1; display: flex; justify-content: space-between; align-items: center; gap: .8rem; padding: .6rem 1.1rem; border-top: 1px solid $line; }
+  &__price { span { color: $muted; font-size: .85rem; } strong { font-size: 1.3rem; font-weight: 800; margin: 0 .15rem; } }
+}
+.access { list-style: none; display: flex; flex-wrap: wrap; gap: .35rem; margin: .4rem 0 0; padding: 0;
+  li { padding: .15rem .6rem; border-radius: 999px; background: $blue-soft; font-size: .82rem;
+    &.is-hl { background: $blue; color: #fff; } } }

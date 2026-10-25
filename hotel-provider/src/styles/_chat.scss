@@ -1,0 +1,28 @@
+@use 'variables' as *;
+
+.chat { position: fixed; right: 1.25rem; bottom: 1.25rem; z-index: 50; display: flex; flex-direction: column; align-items: flex-end; gap: .75rem;
+
+  &__toggle { padding: .8rem 1.5rem; border: 0; border-radius: 999px; background: $orange; color: #fff; font-weight: 800; cursor: pointer; box-shadow: 0 6px 18px rgba(245, 132, 16, .4);
+    &:hover { background: $orange-dark; } }
+
+  &__panel { width: min(380px, calc(100vw - 2.5rem)); height: min(520px, 70vh); display: flex; flex-direction: column;
+    background: $surface; border-radius: $radius-lg; overflow: hidden; box-shadow: 0 12px 36px rgba(31, 90, 140, .25); }
+
+  &__tabs { display: flex; background: $blue-soft; padding: .4rem; gap: .3rem;
+    button { flex: 1; padding: .55rem .5rem; border: 0; border-radius: 10px; background: transparent; color: $muted; font-weight: 700; cursor: pointer;
+      &.is-active { background: $surface; color: $blue; box-shadow: $shadow; } }
+    .chat__close { flex: none; width: 40px; font-size: 1.3rem; } }
+
+  &__messages { flex: 1; overflow-y: auto; padding: 1rem; display: flex; flex-direction: column; gap: .6rem; background: $bg; }
+  &__msg { max-width: 85%; padding: .6rem .9rem; border-radius: 16px; font-size: .95rem; white-space: pre-wrap;
+    &--bot { align-self: flex-start; background: $surface; box-shadow: $shadow; border-bottom-left-radius: 4px; }
+    &--user { align-self: flex-end; background: $blue; color: #fff; border-bottom-right-radius: 4px; }
+    &.is-error { color: #c0392b; } }
+  &__links { display: flex; flex-direction: column; gap: .2rem; margin-top: .4rem; a { font-weight: 700; } }
+  &__typing { color: $muted; font-style: italic; }
+
+  &__form { display: flex; gap: .5rem; padding: .7rem; border-top: 1px solid $line;
+    input { flex: 1; min-width: 0; padding: .6rem .9rem; border: 1px solid $line; border-radius: 999px; }
+    button { padding: .6rem 1.1rem; border: 0; border-radius: 999px; background: $blue; color: #fff; font-weight: 700; cursor: pointer;
+      &:disabled { opacity: .5; cursor: not-allowed; } } }
+}

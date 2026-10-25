@@ -1,0 +1,18 @@
+@use 'variables' as *;
+
+.layout { min-height: 100vh; display: flex; flex-direction: column; &__main { flex: 1; padding-bottom: 4rem; } }
+
+.site-header { background: $surface; box-shadow: 0 1px 0 $line; position: sticky; top: 0; z-index: 20;
+  &__inner { display: flex; align-items: center; justify-content: space-between; height: 60px; } }
+.logo { font-size: 1.5rem; font-weight: 800; color: $blue; text-decoration: none; span { color: $orange; } }
+.nav a { margin-left: 1.5rem; color: $ink; text-decoration: none; font-weight: 700;
+  &.active, &:hover { color: $blue; } }
+
+.site-footer { border-top: 1px solid $line; padding: 1.5rem 0; color: $muted; font-size: .9rem; }
+.not-found { padding: 4rem 0; }
+
+.hero { background: linear-gradient(180deg, #c9e9fb 0%, #e9f6fd 100%); padding: 2.2rem 0 2.6rem; margin-bottom: 1.5rem;
+  h1 { max-width: 20ch; margin-bottom: 1.2rem; } }
+.search { display: flex; gap: .5rem; max-width: 640px; background: $surface; padding: .5rem; border-radius: 16px; box-shadow: $shadow;
+  input { flex: 1; min-width: 0; border: 0; padding: .6rem .9rem; font-size: 1.05rem; background: transparent; &:focus { outline: none; } }
+  &:focus-within { box-shadow: 0 0 0 3px rgba(31, 160, 240, .35); } }
