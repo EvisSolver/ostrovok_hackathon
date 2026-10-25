@@ -10,13 +10,13 @@ url_model = 'https://api.deepinfra.com/v1/inference/deepseek-ai/DeepSeek-V4.1-Fl
 llm_key = os.getenv("OPEN_ROUTER_KEY")
 
 
-class LLM_REQUEST_BUILDER:
+class LLM_ANSWER_COMPOSER:
     def __init__(self, url_model, llm_key):
         self.url_model = url_model
         self.llm_key = llm_key
         super().__init__()
 
-    async def llm_response(self):
+    async def llm_response_ANSWER_COMPOSER(self):
         try:
             user_is_asking = True
             if user_is_asking == True:
@@ -45,8 +45,8 @@ class LLM_REQUEST_BUILDER:
     # TODO: async def llm_filter():
         
 
-    def main(self):
-        asyncio.run(self.llm_response())        
+#     def main(self):
+#         asyncio.run(self.llm_response())        
 
-llm = LLM_REQUEST_BUILDER(url_model = url_model, llm_key = llm_key)
-llm.main()
+# llm = LLM_REQUEST_BUILDER(url_model = url_model, llm_key = llm_key)
+# llm.main()

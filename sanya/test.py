@@ -22,8 +22,7 @@ class LLM_REQUEST_BUILDER:
             if user_is_asking == True:
                 while True:
                     user_input = await asyncio.to_thread(input, "\nYou: ")#user-input-text
-                    
-                    if user_input in ["q", "quit", "exit", "e"]: break
+                    if user_input == ["q", "quit", "exit", "e"]: break
                     if not user_input.strip(): continue
 
                     response = f"<|begin_of_text|><|start_header_id|>system<|end_header_id|>{prompt}<|eot_id|><|start_header_id|>user<|end_header_id|>\n\n{user_input}<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n"
@@ -42,9 +41,9 @@ class LLM_REQUEST_BUILDER:
                         async for line in llm_response.aiter_lines():
                             if line.startswith("data: "):
                                 token = json.loads(line[5:])["token"]["text"]
-                                Write.Print(token, Colors.green, end = "", interval = 0)
+                                Write.Print(token, Colors.green, end = "", interval = 0)#LLM-TEXT
 
-        except Exception as e: print(f"\n[error] {e!r}")
+        except Exception as e: print(f"\n|ERROR| {e!r}")
 
     # TODO: async def llm_filter():
         
