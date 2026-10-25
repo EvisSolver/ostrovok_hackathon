@@ -11,7 +11,7 @@ REQUEST_BUILDER = {
     "prompt": "+1 | ты первая модель"
 }
 DATA_FETCHER = {
-    "model_url": "",
+    "model_url": "", #TODO пофиксить и определиться с моделью(до этого стояла Gemini-2.5-Pro)
     "llm_key": os.getenv("OPEN_ROUTER_KEY"),
     "prompt": "+1 | ты вторая модель"
 }
