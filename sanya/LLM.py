@@ -1,7 +1,4 @@
-import requests, json, os, asyncio, httpx, traceback
-
-from dotenv import load_dotenv
-from pystyle import Colors, Write
+import asyncio, httpx, traceback
 
 from config import *
 
