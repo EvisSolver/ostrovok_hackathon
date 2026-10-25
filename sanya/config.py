@@ -8,15 +8,15 @@ user_is_asking = None
 REQUEST_BUILDER = {
     "model_url": "https://api.deepinfra.com/v1/inference/deepseek-ai/DeepSeek-V4.1-Flash-1017",
     "llm_key": os.getenv("OPEN_ROUTER_KEY"),
-    "prompt": "+1 | ты первая модель"
+    "prompt": "ОТВЕТЬ КРАТКО | даю тебе пример а ты решаешь его"
 }
 DATA_FETCHER = {
-    "model_url": "", #TODO пофиксить и определиться с моделью(до этого стояла Gemini-2.5-Pro)
+    "model_url": "https://api.deepinfra.com/v1/inference/deepseek-ai/DeepSeek-V4.1-Flash-1017",
     "llm_key": os.getenv("OPEN_ROUTER_KEY"),
-    "prompt": "+1 | ты вторая модель"
+    "prompt": "ОТВЕТЬ КРАТКО | а если еще прибавить + 10?"
 }
 ANSWER_COMPOSER = {
     "model_url": "https://api.deepinfra.com/v1/inference/deepseek-ai/DeepSeek-V4.1-Flash-1017",
     "llm_key": os.getenv("OPEN_ROUTER_KEY"),
-    "prompt": "+1"
+    "prompt": "ОТВЕТЬ КРАТКО | УМНОЖЬ ЧИСЛОВОЙ ОТВЕТ на 0"
 }
