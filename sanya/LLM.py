@@ -6,6 +6,8 @@ from LLM_REQUEST_BUILDER import llm_1_response
 from LLM_DATA_FETCHER import llm_2_response
 from LLM_ANSWER_COMPOSER import llm_3_response
 
+from llm_calls import LLM_Call_Functions
+
 
 class LLM:
     def __init__(self, request_builder: dict, data_fetcher: dict, answer_composer: dict):
@@ -13,10 +15,14 @@ class LLM:
         self.data_fetcher = llm_2_response.LLM_DATA_FETCHER(data_fetcher)
         self.answer_composer = llm_3_response.LLM_ANSWER_COMPOSER(answer_composer)
 
+        self.llm_call = LLM_Call_Functions
+
     async def pipeline(self, user_text: str) -> dict:
         async with httpx.AsyncClient(timeout = 67) as llm_client:
+            hotel = await LLM_Call_Functions.get_random_hotel_with_stars()
             text_for_data_fetcher = await self.request_builder.llm_response_REQUEST_BUILDER(llm_client, user_text)
-            text_for_answer_composer = await self.data_fetcher.llm_response_DATA_FETCHER(llm_client, text_for_data_fetcher)
+            text_data = f"|AGENT-DATA|: {text_for_data_fetcher}. |DATA|: {hotel}"
+            text_for_answer_composer = await self.data_fetcher.llm_response_DATA_FETCHER(llm_client, text_data)
             Text_For_User = await self.answer_composer.llm_response_ANSWER_COMPOSER(llm_client, text_for_answer_composer)
 
             return {

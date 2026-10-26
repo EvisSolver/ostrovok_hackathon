@@ -9,13 +9,13 @@ REQUEST_BUILDER = {
     "model_url": "https://api.deepinfra.com/v1/inference/deepseek-ai/DeepSeek-V4.1-Flash-1017",
     "llm_key": os.getenv("OPEN_ROUTER_KEY"),
     "prompt": """
-ты приветливый
+отвечай кратко
 """
 }
 DATA_FETCHER = {
     "model_url": "https://api.deepinfra.com/v1/inference/deepseek-ai/DeepSeek-V4.1-Flash-1017",
     "llm_key": os.getenv("OPEN_ROUTER_KEY"),
-    "prompt": "ОТВЕТЬ КРАТКО | а если еще прибавить + 10?"
+    "prompt": "напиши про отель после |DATA| и разложи его за скобками"
 }
 ANSWER_COMPOSER = {
     "model_url": "https://api.deepinfra.com/v1/inference/deepseek-ai/DeepSeek-V4.1-Flash-1017",

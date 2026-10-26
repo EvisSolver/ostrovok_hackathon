@@ -1,70 +1,100 @@
-import requests, json, os, asyncio, httpx, traceback
-from dotenv import load_dotenv
-from pystyle import Colors, Write
+import json
+import httpx
 
-from config import *
-
-
-load_dotenv()
-url_model = 'https://api.deepinfra.com/v1/inference/'
-llm_key = os.getenv("OPEN_ROUTER_KEY")
-model_name = "google/gemini-2.5-pro"
-
-class LLM_REQUEST_BUILDER:
-    def __init__(self, url_model, llm_key, model_name):
-        self.url_model = url_model
-        self.llm_key = llm_key
-        self.model_name = model_name
-        super().__init__()
-
-    async def llm_response(self, client: httpx.AsyncClient):
-        try:
-            user_is_asking = True
-            if user_is_asking == True:
-                while True:
-                    user_input = await asyncio.to_thread(input, "\nYou: ")#user-input-text
-                    if user_input == ["q", "quit", "exit", "e"]: break
-                    if not user_input.strip(): continue
-
-                    llm_body = {
-                        "model": self.model_name,
-                        "messages": [
-                            {"role": "system", "content": prompt},
-                            {"role": "user", "content": user_input},
-                        ], "Temperature": 0.3, "stream": True
-                    }
-                    async with client.stream(
-                        "POST", self.url_model, 
-                        headers = {"Authorization": f"Bearer {self.llm_key}"},
-                        json = llm_body
-                    ) as llm_response:
-                        if llm_response.status_code != 200:
-                            await llm_response.aread()
-                            Write.Print(f"L|35|: unknown error {llm_response.status_code} {llm_response.text[:200]}", Colors.red, interval = 0)
-                            continue
-
-                        print("Assistant: ")
-
-                        async for line in llm_response.aiter_lines():
-                            if line.startswith("data: "):
-                                token = json.loads(line[5:])["token"]["text"]
-                                Write.Print(token, Colors.green, end = "", interval = 0)#LLM-TEXT
-
-        except Exception as e: print(f"\n|ERROR| {e!r}")
-
-    # TODO: async def llm_filter():
-        
-
-    def main(self):
-        async def run():
-            async with httpx.AsyncClient(timeout = 67) as client:
-                await self.llm_response(client)
-        
-        try: asyncio.run(run())
-        
-        except KeyboardInterrupt: print("exit")
-        except Exception: traceback.print_exc()
+from llm_calls import LLM_Call_Functions
 
 
-if __name__ == "__main__":
-    LLM_REQUEST_BUILDER(url_model, llm_key, model_name).main()
+TOOLS = [{
+    "type": "function",
+    "function": {
+        "name": "get_random_hotel_with_stars",
+        "description": "Получить случайный отель со звёздами из PostgreSQL",
+        "parameters": {
+            "type": "object",
+            "properties": {},
+            "required": []
+        }
+    }
+}]
+
+
+class LLM_DATA_FETCHER:
+    def __init__(self, config: dict):
+        # Оставляем вашу исходную ссылку:
+        # https://api.deepinfra.com/v1/inference/<model-id>
+        original_url = config["model_url"]
+        prefix, marker, self.model = original_url.partition("/v1/inference/")
+
+        if not marker or not self.model:
+            raise ValueError("В model_url должен быть путь /v1/inference/<model-id>")
+
+        # Для tool calling используем OpenAI-совместимый endpoint DeepInfra.
+        self.url_model = prefix + "/v1/openai/chat/completions"
+        self.llm_key = config["llm_key"]
+        self.prompt = config["prompt"]
+
+    async def llm_response_DATA_FETCHER(
+        self,
+        client: httpx.AsyncClient,
+        user_input: str
+    ):
+        messages = [
+            {"role": "system", "content": self.prompt},
+            {"role": "user", "content": user_input},
+        ]
+
+        response = await client.post(
+            self.url_model,
+            headers={"Authorization": f"Bearer {self.llm_key}"},
+            json={
+                "model": self.model,
+                "messages": messages,
+                "tools": TOOLS,
+                "tool_choice": "auto",
+            },
+        )
+
+        if response.status_code != 200:
+            raise RuntimeError(
+                f"DeepInfra: {response.status_code} {response.text[:500]}"
+            )
+
+        message = response.json()["choices"][0]["message"]
+        tool_calls = message.get("tool_calls") or []
+
+        if not tool_calls:
+            return json.dumps({
+                "AGENT-INPUT": user_input,
+                "DATA": [],
+                "status": "no_tool_call",
+            }, ensure_ascii=False)
+
+        # Запоминаем запрос инструмента, который вернула модель.
+        messages.append({
+            "role": "assistant",
+            "content": message.get("content"),
+            "tool_calls": tool_calls,
+        })
+
+        results = []
+
+        # Python выполняет функцию. DeepInfra сам к вашей БД не подключается.
+        for call in tool_calls:
+            function_name = call["function"]["name"]
+
+            if function_name == "get_random_hotel_with_stars":
+                result = await LLM_Call_Functions.get_random_hotel_with_stars()
+            else:
+                result = None
+
+            results.append({
+                "tool": function_name,
+                "result": result,
+            })
+
+        # Второй агент передаёт вопрос и фактические данные третьему.
+        return json.dumps({
+            "AGENT-INPUT": user_input,
+            "DATA": results,
+            "status": "complete" if results else "no_data",
+        }, ensure_ascii=False, default=str)

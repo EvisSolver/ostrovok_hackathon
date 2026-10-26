@@ -4,7 +4,6 @@ from pathlib import Path
 from psycopg.rows import dict_row
 
 from llm_calls_config import *
-from LLM import *
 
 
 class LLM_Call_Functions:
@@ -20,10 +19,3 @@ class LLM_Call_Functions:
                 await cur.execute(sql)
                 hotel = await cur.fetchone()
         return hotel
-    
-if __name__ == "__main__":
-    async def main():
-        hotel = await LLM_Call_Functions.get_random_hotel_with_stars()
-        print(hotel)
-    asyncio.run(main())
-

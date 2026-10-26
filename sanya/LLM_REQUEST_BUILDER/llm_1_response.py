@@ -10,6 +10,7 @@ class LLM_REQUEST_BUILDER:
         super().__init__()
 
     async def llm_response_REQUEST_BUILDER(self, client: httpx.AsyncClient, user_input: str):
+        
         user_is_asking = True
         if user_is_asking == True:
             response = (
