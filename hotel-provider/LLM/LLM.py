@@ -44,4 +44,5 @@ class LLM:
         except KeyboardInterrupt: print("\nexit")
         except Exception: traceback.print_exc()
 
-if __name__ == "__main__": LLM(REQUEST_BUILDER, DATA_FETCHER, ANSWER_COMPOSER).run()
+if __name__ == "__main__": 
+    LLM(REQUEST_BUILDER, DATA_FETCHER, ANSWER_COMPOSER).run()

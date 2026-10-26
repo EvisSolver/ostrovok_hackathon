@@ -238,10 +238,15 @@ export default function HeroChat({ hotelSlug, filters, query, onSelectHotel }) {
           {pending && !streaming && (
             <div className="chatgpt-msg chatgpt-msg--bot chatgpt-msg--typing">
               <div className="chatgpt-msg__avatar">{channel === 'ai' ? '🤖' : '💬'}</div>
-              <div className="chatgpt-typing-dots">
-                <span></span>
-                <span></span>
-                <span></span>
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '0.9rem', color: '#64748b', fontWeight: 500 }}>
+                  Нейросеть думает...
+                </span>
+                <div className="chatgpt-typing-dots">
+                  <span></span>
+                  <span></span>
+                  <span></span>
+                </div>
               </div>
             </div>
           )}

@@ -13,7 +13,11 @@
  * userId — постоянный id посетителя из localStorage (переживает перезапуск браузера).
  * Когда на сайте появятся аккаунты, достаточно подставить сюда id пользователя.
  */
-const API = import.meta.env.VITE_API_URL ?? '/api';
+const API =
+  import.meta.env.VITE_API_URL ??
+  (typeof window !== 'undefined' && window.location.port === '5173'
+    ? 'http://localhost:8000/api'
+    : '/api');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 let memoryId = null; // запасной вариант, если localStorage недоступен

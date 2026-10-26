@@ -1,0 +1,87 @@
+[
+  {
+    "slug": "tverskaya-moscow", "name": "Отель «Тверская»", "city": "Москва", "region": "Москва", "country": "Россия",
+    "stars": 5, "rating": 9.3, "reviewsCount": 1280, "priceFrom": 9800, "currency": "RUB", "cover": "",
+    "tagline": "Пять минут до метро, окна на Тверскую",
+    "lat": 55.7648, "lon": 37.6050,
+    "places": {
+      "metro":  [{ "name": "Маяковская", "lat": 55.7699, "lon": 37.5963 }],
+      "center": [{ "name": "Красная площадь", "lat": 55.7539, "lon": 37.6208 }]
+    },
+    "theme": { "accent": "#1fa0f0" },
+    "gallery": [],
+    "description": ["Описание отеля из ваших файлов. Первый абзац.", "Второй абзац описания."],
+    "highlights": [{ "label": "Заезд", "value": "с 14:00" }, { "label": "Выезд", "value": "до 12:00" }],
+    "amenities": ["Wi-Fi", "Спа", "Завтрак", "Парковка", "Фитнес"],
+    "rooms": [
+      { "name": "Стандарт", "size": "24 м²", "guests": 2, "bed": "1 двуспальная", "price": 9800, "image": "" },
+      { "name": "Люкс", "size": "52 м²", "guests": 3, "bed": "king + диван", "price": 18500, "image": "" }
+    ],
+    "location": { "address": "ул. Тверская, 1" },
+    "reviews": [{ "author": "Анна", "rating": 9.4, "date": "2026-08-12", "text": "Текст отзыва." }],
+    "contacts": { "phone": "+7 000 000-00-00", "email": "info@example.ru", "website": "" },
+    "policies": [{ "title": "Отмена брони", "text": "Бесплатно за 48 часов до заезда." }]
+  },
+  {
+    "slug": "nevsky-spb", "name": "Отель «Невский»", "city": "Санкт-Петербург", "region": "Санкт-Петербург", "country": "Россия",
+    "stars": 4, "rating": 8.9, "reviewsCount": 940, "priceFrom": 6200, "currency": "RUB", "cover": "",
+    "tagline": "У Невского проспекта, до метро три минуты",
+    "lat": 59.9343, "lon": 30.3351,
+    "access": { "metro": 3, "sea": null, "center": 7 },
+    "description": ["Описание отеля."], "amenities": ["Wi-Fi", "Завтрак", "Бар"],
+    "rooms": [{ "name": "Комфорт", "size": "22 м²", "guests": 2, "bed": "1 двуспальная", "price": 6200 }],
+    "location": { "address": "Невский проспект, 10" }
+  },
+  {
+    "slug": "dendrariy-sochi", "name": "Отель «Дендрарий»", "city": "Сочи", "region": "Краснодарский край", "country": "Россия",
+    "stars": 5, "rating": 9.5, "reviewsCount": 2110, "priceFrom": 12400, "currency": "RUB", "cover": "",
+    "tagline": "Три минуты пешком до пляжа",
+    "lat": 43.5750, "lon": 39.7230,
+    "access": { "metro": null, "sea": 3, "center": 25 },
+    "theme": { "accent": "#12b5a6" },
+    "description": ["Описание отеля."], "amenities": ["Бассейн", "Пляж", "Спа", "Wi-Fi", "Завтрак"],
+    "rooms": [{ "name": "Номер с видом на море", "size": "30 м²", "guests": 2, "bed": "king", "price": 12400 }],
+    "location": { "address": "Курортный проспект, 20" }
+  },
+  {
+    "slug": "primorskaya-sochi", "name": "Гостиница «Приморская»", "city": "Сочи", "region": "Краснодарский край", "country": "Россия",
+    "stars": 3, "rating": 8.2, "reviewsCount": 610, "priceFrom": 3900, "currency": "RUB", "cover": "",
+    "tagline": "Недорогой вариант у набережной",
+    "lat": 43.5855, "lon": 39.7203,
+    "access": { "metro": null, "sea": 8, "center": 15 },
+    "description": ["Описание отеля."], "amenities": ["Wi-Fi", "Кондиционер"],
+    "rooms": [{ "name": "Стандарт", "size": "18 м²", "guests": 2, "bed": "2 односпальные", "price": 3900 }],
+    "location": { "address": "ул. Приморская, 5" }
+  },
+  {
+    "slug": "kremlevsky-kazan", "name": "Отель «Кремлёвский»", "city": "Казань", "region": "Татарстан", "country": "Россия",
+    "stars": 4, "rating": 9.0, "reviewsCount": 780, "priceFrom": 5400, "currency": "RUB", "cover": "",
+    "tagline": "Пешком до Кремля и метро",
+    "lat": 55.7985, "lon": 49.1064,
+    "access": { "metro": 6, "sea": null, "center": 5 },
+    "description": ["Описание отеля."], "amenities": ["Wi-Fi", "Завтрак", "Ресторан"],
+    "rooms": [{ "name": "Комфорт", "size": "25 м²", "guests": 2, "bed": "1 двуспальная", "price": 5400 }],
+    "location": { "address": "ул. Баумана, 15" }
+  },
+  {
+    "slug": "yantarny-bereg-svetlogorsk", "name": "Отель «Янтарный берег»", "city": "Светлогорск", "region": "Калининградская область", "country": "Россия",
+    "stars": 4, "rating": 8.8, "reviewsCount": 430, "priceFrom": 5100, "currency": "RUB", "cover": "",
+    "tagline": "Две минуты до Балтийского моря",
+    "lat": 54.9440, "lon": 20.1550,
+    "access": { "metro": null, "sea": 2, "center": 6 },
+    "theme": { "accent": "#3b82f6" },
+    "description": ["Описание отеля."], "amenities": ["Спа", "Wi-Fi", "Завтрак"],
+    "rooms": [{ "name": "Стандарт", "size": "21 м²", "guests": 2, "bed": "1 двуспальная", "price": 5100 }],
+    "location": { "address": "Калининградский проспект, 3" }
+  },
+  {
+    "slug": "zolotoy-rog-vladivostok", "name": "Отель «Золотой Рог»", "city": "Владивосток", "region": "Приморский край", "country": "Россия",
+    "stars": 4, "rating": 8.7, "reviewsCount": 520, "priceFrom": 5800, "currency": "RUB", "cover": "",
+    "tagline": "Вид на бухту, пять минут до воды",
+    "lat": 43.1155, "lon": 131.8855,
+    "access": { "metro": null, "sea": 5, "center": 10 },
+    "description": ["Описание отеля."], "amenities": ["Wi-Fi", "Завтрак", "Парковка"],
+    "rooms": [{ "name": "Комфорт", "size": "23 м²", "guests": 2, "bed": "1 двуспальная", "price": 5800 }],
+    "location": { "address": "Светланская ул., 40" }
+  }
+]

@@ -1,4 +1,4 @@
-# Стенд: nginx (балансировщик + статика сайта) -> 3 контейнера API (по 2 воркера) -> PostgreSQL.
+# Стенд: nginx (балансировщик + статика сайта) -> 3 контейнера API (по 2 воркера) -> PostgreSQL + микросервис LLM.
 #   npm run build            # собрать сайт в dist/
 #   docker compose up --build
 # Откройте http://localhost:8080
@@ -12,16 +12,26 @@ services:
     volumes: ["pgdata:/var/lib/postgresql/data"]
     healthcheck: { test: ["CMD-SHELL", "pg_isready -U hotels"], interval: 5s, timeout: 3s, retries: 10 }
 
+  llm:
+    build: ./LLM
+    restart: unless-stopped
+    ports: ["8001:8001"]
+    env_file: ./LLM/.env
+    healthcheck: { test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/health')"], interval: 10s, timeout: 3s, retries: 3 }
+
   api:
     build: ./server
     environment:
       DATABASE_URL: postgresql://hotels:${POSTGRES_PASSWORD:-hotels}@db:5432/hotels
       HOTELS_FILE: /data/hotels.json
+      LLM_SERVICE_URL: http://llm:8001
       MODEL_URL: ${MODEL_URL:-}
       MODEL_NAME: ${MODEL_NAME:-default}
       MODEL_API_KEY: ${MODEL_API_KEY:-}
     volumes: ["./public/data:/data:ro"]
-    depends_on: { db: { condition: service_healthy } }
+    depends_on:
+      db: { condition: service_healthy }
+      llm: { condition: service_healthy }
     healthcheck: { test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://localhost:8000/readyz')"], interval: 10s, timeout: 3s, retries: 3 }
     restart: unless-stopped
     deploy: { replicas: 3 }

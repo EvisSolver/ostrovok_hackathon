@@ -28,13 +28,16 @@ from typing import Literal, Optional
 
 import httpx
 from fastapi import FastAPI, Header, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
+
 
 log = logging.getLogger("chat")
 logging.basicConfig(level=logging.INFO)
 
 DATABASE_URL = os.getenv("DATABASE_URL")
+LLM_SERVICE_URL = os.getenv("LLM_SERVICE_URL")
 MODEL_URL = os.getenv("MODEL_URL")
 MODEL_NAME = os.getenv("MODEL_NAME", "default")
 MODEL_API_KEY = os.getenv("MODEL_API_KEY", "")
@@ -153,6 +156,13 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 # ======================= формат запроса =======================
@@ -200,10 +210,28 @@ def build_system_prompt(current_hotel: Optional[dict], hotels: list[dict]) -> st
 
 async def stream_model(system_prompt: str, history: list[dict]):
     """
-    Асинхронный генератор: отдаёт ответ нейронки кусками текста по мере генерации.
+    Асинхронный генератор: отдаёт ответ нейронки.
     history — [{"role": "user"|"assistant", "text": "..."}], последнее — вопрос человека.
-    Если MODEL_URL задан, используется любой OpenAI-совместимый сервер. Иначе — заглушка.
+    Если задан LLM_SERVICE_URL, используется Docker-микросервис LLM.
+    Иначе, если MODEL_URL задан, используется OpenAI-совместимый сервер. Иначе — заглушка.
     """
+    if LLM_SERVICE_URL:
+        user_message = history[-1]["text"]
+        try:
+            r = await S.http.post(
+                f"{LLM_SERVICE_URL.rstrip('/')}/generate",
+                json={"message": user_message},
+                timeout=75.0,
+            )
+            r.raise_for_status()
+            data = r.json()
+            yield data.get("response", "")
+            return
+        except Exception as e:
+            log.error(f"Ошибка обращения к LLM_SERVICE_URL: {e}")
+            yield f"Ошибка сервиса нейросети: {e}"
+            return
+
     if not MODEL_URL:
         for word in f"Заглушка ИИ. Вы написали: «{history[-1]['text']}»".split(" "):
             await asyncio.sleep(0.05)

@@ -1,0 +1,11 @@
+                                        0%  479M=0s
+
+2026-10-26 23:18:16 (479 MB/s) - Read error at byte 15817/12683159 (Connection timed out). Retrying.
+
+--2026-10-26 23:18:17--  (try: 2)  https://trunk.io/releases/1.25.0/trunk-1.25.0-linux-x86_64.tar.gz
+Connecting to trunk.io (trunk.io)|65.9.62.8|:443... connected.
+HTTP request sent, awaiting response... 206 Partial Content
+Length: 12683159 (12M), 12667342 (12M) remaining [application/x-tar]
+Saving to: ‘/home/miro/.cache/trunk/cli/tmp.vreaoc3dzx/launcher/install/download-1.25.0.tar.gz’
+
+     0K ,,,,,,,,,, ,,,,,..... .......... .
