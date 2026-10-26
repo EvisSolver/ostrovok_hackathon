@@ -608,7 +608,7 @@
   }
 }
 
-/* 4. ПЛАВАЮЩИЙ ИНПУТ В СТИЛЕ CHATGPT: ИИ СЛЕВА, СТРОКА ВВОДА, ПОДДЕРЖКА СПРАВА */
+/* 4. ПЛАВАЮЩИЙ ИНПУТ: НАДПИСЬ ИИ СЛЕВА, СТРОКА ВВОДА, ОТДЕЛЬНАЯ КНОПКА ОТПРАВИТЬ СПРАВА */
 .chatgpt-input-dock {
   display: flex;
   align-items: center;
@@ -621,13 +621,49 @@
   }
 }
 
+/* Слева: просто надпись «ИИ-помощник» (без кнопки) */
+.chatgpt-label-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: .45rem;
+  padding: .7rem 1.15rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(8px);
+  color: $ink;
+  font-weight: 800;
+  font-size: .86rem;
+  white-space: nowrap;
+  box-shadow: 0 4px 16px rgba(31, 90, 140, .06);
+  user-select: none;
+  cursor: default;
+
+  &__icon {
+    font-size: 1.25rem;
+    line-height: 1;
+  }
+
+  &__text {
+    color: $ink;
+  }
+
+  &__dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: $green;
+    box-shadow: 0 0 0 2px rgba($green, .25);
+    animation: pulseDot 2s infinite ease-in-out;
+  }
+}
+
+/* Центральное поле ввода */
 .chatgpt-bar {
   flex: 1;
   min-width: 0;
   display: flex;
   align-items: center;
-  gap: .5rem;
-  padding: .35rem .45rem .35rem 1.2rem;
+  padding: .35rem 1.25rem;
   background: #ffffff;
   border-radius: 999px;
   box-shadow: 0 8px 30px rgba(31, 90, 140, .1);
@@ -652,35 +688,12 @@
   }
 }
 
-.chatgpt-send-btn {
-  width: 36px;
-  height: 36px;
-  flex-shrink: 0;
-  border: 0;
-  border-radius: 50%;
-  background: $ink;
-  color: #fff;
-  display: grid;
-  place-items: center;
-  cursor: pointer;
-  transition: background .15s, transform .15s, opacity .15s;
-
-  &:hover:not(:disabled) {
-    background: $blue;
-    transform: scale(1.05);
-  }
-
-  &:disabled {
-    opacity: .35;
-    cursor: not-allowed;
-  }
-}
-
-.chatgpt-channel-pill {
+/* Справа: отдельная компактная кнопка «Отправить» */
+.chatgpt-submit-pill {
   display: inline-flex;
   align-items: center;
   gap: .45rem;
-  padding: .7rem 1.15rem;
+  padding: .7rem 1.25rem;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.85);
   backdrop-filter: blur(8px);
@@ -693,37 +706,30 @@
   box-shadow: 0 4px 16px rgba(31, 90, 140, .06);
   transition: all .2s cubic-bezier(0.16, 1, 0.3, 1);
 
-  &:hover {
-    background: #ffffff;
-    color: $ink;
-    transform: translateY(-1px);
-    box-shadow: 0 8px 22px rgba(31, 90, 140, .12);
+  svg {
+    transition: transform .15s ease;
   }
 
-  &.is-active {
-    background: #ffffff;
-    color: $blue;
-    box-shadow: 0 8px 24px rgba(31, 160, 240, .22);
-    transform: scale(1.03);
+  &:hover:not(:disabled) {
+    background: $blue;
+    color: #ffffff;
+    transform: translateY(-1px);
+    box-shadow: 0 8px 24px rgba(31, 160, 240, .3);
 
-    &.chatgpt-channel-pill--right {
-      color: $orange-dark;
-      box-shadow: 0 8px 24px rgba(245, 132, 16, .22);
+    svg {
+      transform: translateY(-1px);
     }
   }
 
-  &__icon {
-    font-size: 1.25rem;
-    line-height: 1;
+  &.is-ready {
+    background: $blue;
+    color: #ffffff;
+    box-shadow: 0 6px 20px rgba(31, 160, 240, .28);
   }
 
-  &__dot {
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-    background: $green;
-    box-shadow: 0 0 0 2px rgba($green, .25);
-    animation: pulseDot 2s infinite ease-in-out;
+  &:disabled {
+    opacity: .45;
+    cursor: not-allowed;
   }
 }
 

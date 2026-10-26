@@ -259,70 +259,41 @@ export default function HeroChat({ hotelSlug, filters, query, onSelectHotel }) {
         )}
       </div>
 
-      {/* 4. Плавающий инпут в стиле ChatGPT: выбор ИИ слева, строка по центру, поддержка справа */}
-      <div className="chatgpt-input-dock">
-        {/* Кнопка ИИ-помощник слева */}
-        <button
-          type="button"
-          className={`chatgpt-channel-pill chatgpt-channel-pill--left ${
-            channel === 'ai' ? 'is-active' : ''
-          }`}
-          onClick={(e) => {
-            e.preventDefault();
-            setChannel('ai');
-          }}
-          aria-selected={channel === 'ai'}
-          title="Режим ИИ-помощника"
-        >
-          <span className="chatgpt-channel-pill__icon">🤖</span>
-          <span className="chatgpt-channel-pill__label">ИИ-помощник</span>
-          <span className="chatgpt-channel-pill__dot" />
-        </button>
+      {/* 4. Плавающий инпут в стиле ChatGPT: надпись ИИ слева, строка по центру, кнопка «Отправить» справа */}
+      <form className="chatgpt-input-dock" onSubmit={onSubmit}>
+        {/* Слева: просто надпись «ИИ-помощник», без кнопки */}
+        <div className="chatgpt-label-pill" title="ИИ-помощник активен">
+          <span className="chatgpt-label-pill__icon">🤖</span>
+          <span className="chatgpt-label-pill__text">ИИ-помощник</span>
+          <span className="chatgpt-label-pill__dot" />
+        </div>
 
-        {/* Центральное поле ввода */}
-        <form className="chatgpt-bar" onSubmit={onSubmit}>
+        {/* По центру: поле ввода (отдельно от кнопки отправки) */}
+        <div className="chatgpt-bar">
           <input
             ref={inputRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder={
-              channel === 'ai'
-                ? 'Спросите о любом отеле, городе или пожеланиях...'
-                : 'Напишите вопрос службе заботы...'
-            }
+            placeholder="Спросите о любом отеле, городе или пожеланиях..."
             aria-label="Запрос к ИИ"
             disabled={pending}
           />
-          <button
-            type="submit"
-            className="chatgpt-send-btn"
-            disabled={!input.trim() || pending}
-            aria-label="Отправить запрос"
-            title="Отправить запрос"
-          >
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
-              <path d="M12 4l-6 6h4v8h4v-8h4l-6-6z" />
-            </svg>
-          </button>
-        </form>
+        </div>
 
-        {/* Кнопка Поддержка справа */}
+        {/* Справа: отдельная компактная кнопка «Отправить» вместо поддержки */}
         <button
-          type="button"
-          className={`chatgpt-channel-pill chatgpt-channel-pill--right ${
-            channel === 'support' ? 'is-active' : ''
-          }`}
-          onClick={(e) => {
-            e.preventDefault();
-            setChannel('support');
-          }}
-          aria-selected={channel === 'support'}
-          title="Служба поддержки"
+          type="submit"
+          className={`chatgpt-submit-pill ${input.trim() && !pending ? 'is-ready' : ''}`}
+          disabled={!input.trim() || pending}
+          title="Отправить запрос"
+          aria-label="Отправить запрос"
         >
-          <span className="chatgpt-channel-pill__icon">💬</span>
-          <span className="chatgpt-channel-pill__label">Поддержка</span>
+          <span>Отправить</span>
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor">
+            <path d="M12 4l-6 6h4v8h4v-8h4l-6-6z" />
+          </svg>
         </button>
-      </div>
+      </form>
     </div>
   );
 }
