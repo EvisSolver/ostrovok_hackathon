@@ -1,9 +1,7 @@
-version: '3.8'
-
 services:
+  # 1. База данных
   db:
     image: postgis/postgis:16-3.4
-    container_name: otters_db
     environment:
       POSTGRES_USER: otters
       POSTGRES_PASSWORD: hackathon
@@ -11,7 +9,52 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      # Проверяем, готов ли Postgres принимать соединения
+      test: ["CMD-SHELL", "pg_isready -U otters -d otters_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
+  # 2. Скрипт загрузки данных (отработает один раз и выключится)
+  etl:
+    build: .
+    command: sh -c "cd scripts && python etl.py"
+    environment:
+      # Обрати внимание: host теперь 'db', а не 'localhost'!
+      - DATABASE_URL=postgresql+asyncpg://otters:hackathon@db:5432/otters_db
+    depends_on:
+      db:
+        condition: service_healthy # Ждем, пока база полностью запустится
+
+  # 3. FastAPI
+  api:
+    build: .
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://otters:hackathon@db:5432/otters_db
+    depends_on:
+      db:
+        condition: service_healthy
+      etl:
+        condition: service_completed_successfully # Ждем, пока ETL загрузит данные
+
+  # 4. Streamlit
+  streamlit:
+    build: .
+    command: streamlit run scripts/streamlit_app.py --server.port 8501 --server.address 0.0.0.0
+    ports:
+      - "8501:8501"
+    environment:
+      # Ссылка на API для Streamlit (внутри докера localhost не работает)
+      - API_URL=http://api:8000 
+    depends_on:
+      - api
+
+# Том для сохранения данных БД
 volumes:
-  pgdata:
+  postgres_data:
