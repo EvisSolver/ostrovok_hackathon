@@ -8,7 +8,7 @@ import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.db import engine, AsyncSessionLocal
-from app.models import Base, Hotel, GreenZone, Road # НОВОЕ: импортируем Road
+from app.models import Base, Hotel, GreenZone, Road, Attraction, Shop_malls, Where_to_eat
 
 def make_point(lat: float, lon: float) -> WKTElement:
     return WKTElement(f"POINT({lon} {lat})", srid=4326)
@@ -44,6 +44,19 @@ def detect_zone_type(tags: dict) -> str:
         if key in tags:
             return tags[key]
     return "unknown"
+ 
+def detect_shop_type(tags: dict) -> str: # ДОДЕЛАТЬДОДЕЛАТЬДОДЕЛАТЬДОДЕЛАТЬДОДЕЛАТЬДОДЕЛАТЬ
+    for key in ("leisure", "natural", "waterway"):
+        if key in tags:
+            return tags[key]
+    return "unknown"
+
+def detect_whereeat_type(tags: dict) -> str: # ДОДЕЛАТЬДОДЕЛАТЬДОДЕЛАТЬДОДЕЛАТЬДОДЕЛАТЬДОДЕЛАТЬ
+    for key in ("leisure", "natural", "waterway"):
+        if key in tags:
+            return tags[key]
+    return "unknown"
+
 
 async def main():
     # 1. Создаем таблицы
@@ -84,7 +97,7 @@ async def main():
             "location": make_point(lat, lon),
         })
 
-    # НОВОЕ: Читаем дороги
+    #Читаем дороги
     print("Чтение дорог...")
     with open("../data/roads_moscow.json", "r", encoding="utf-8") as f:
         roads_raw = json.load(f).get("elements", [])
@@ -103,22 +116,86 @@ async def main():
             "location": line,
         })
 
+###МОЙ ГОВНО КОД НЕ НЕЙРОНКА ДАЖЕ КЛЯНГУСЬ67
+
+    print("Чтение shop_malls...")
+    with open("../data/shop_malls.json", "r", encoding="utf-8") as f:
+        shop_malls_raw = json.load(f).get("elements", [])
+
+    shop_malls_rows = []
+    for el in shop_malls_raw:
+        lat, lon = get_coords(el)
+        if lat is None: continue
+        tags = el.get("tags", {})
+        shop_malls_rows.append({
+            "id": el["id"],
+            "name": tags.get("name", "Unknown"),
+            "type": detect_shop_type(tags),
+            "location": make_point(lat, lon),
+        })
+
+
+    print("Чтение attraction...")
+    with open("../data/attraction.json", "r", encoding="utf-8") as f:
+        attraction_raw = json.load(f).get("elements", [])
+
+    attraction_rows = []
+    for el in attraction_raw:
+        lat, lon = get_coords(el)
+        if lat is None: continue
+        tags = el.get("tags", {})
+        attraction_rows.append({
+            "id": el["id"],
+            "name": tags.get("name", "Unknown"),
+            "location": make_point(lat, lon),
+        })
+
+    print("Чтение where_to_eat...")
+    with open("../data/where_to_eat.json", "r", encoding="utf-8") as f:
+        where_to_eat_raw = json.load(f).get("elements", [])
+
+    where_to_eat_rows = []
+    for el in where_to_eat_raw:
+        lat, lon = get_coords(el)
+        if lat is None: continue
+        tags = el.get("tags", {})
+        where_to_eat_rows.append({
+            "id": el["id"],
+            "name": tags.get("name", "Unknown"),
+            "type": detect_whereeat_type(tags),
+            "location": make_point(lat, lon),
+        })
+
+
     # 4. Заливаем в базу
-    print(f"Заливка в БД: {len(hotel_rows)} отелей, {len(zone_rows)} зон, {len(road_rows)} дорог...")
+    print(
+        f"Заливка: {len(hotel_rows)} отелей, {len(zone_rows)} зон, {len(road_rows)} дорог, "
+        f"{len(attraction_rows)} достопримечательностей, {len(shop_malls_rows)} ТЦ, "
+        f"{len(where_to_eat_rows)} точек еды"
+    )
     async with AsyncSessionLocal() as session:
         async with session.begin():
             # Очистка перед заливкой
             await session.execute(Hotel.__table__.delete())
             await session.execute(GreenZone.__table__.delete())
-            await session.execute(Road.__table__.delete()) # НОВОЕ
-            
+            await session.execute(Road.__table__.delete()) 
+            await session.execute(Attraction.__table__.delete())
+            await session.execute(Shop_malls.__table__.delete())
+            await session.execute(Where_to_eat.__table__.delete())
+
             # Быстрый bulk insert
             if hotel_rows:
                 await session.execute(insert(Hotel), hotel_rows)
             if zone_rows:
                 await session.execute(insert(GreenZone), zone_rows)
-            if road_rows: # НОВОЕ
+            if road_rows: 
                 await session.execute(insert(Road), road_rows)
+            if road_rows: 
+                await session.execute(insert(Attraction), attraction_rows)
+            if road_rows: 
+                await session.execute(insert(Shop_malls), shop_malls_rows)
+            if road_rows: 
+                await session.execute(insert(Where_to_eat), where_to_eat_rows)
     
     print("✅ ETL успешно завершен!")
 

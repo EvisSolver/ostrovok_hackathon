@@ -4,3 +4,4 @@ sqlalchemy[asyncio]==2.0.25
 asyncpg==0.29.0
 geoalchemy2==0.14.3
 python-dotenv==1.0.0
+psycopg2-binary
