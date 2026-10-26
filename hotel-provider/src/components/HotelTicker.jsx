@@ -4,8 +4,8 @@ import HotelTickerCard from './HotelTickerCard.jsx';
 export default function HotelTicker({
   hotels = [],
   direction = 'up', // 'up' | 'down'
-  stepInterval = 3200, // Интервал между рывками в миллисекундах
-  delay = 0, // Задержка перед первым рывком (для рассинхронизации колонок)
+  stepInterval = 3600, // Пауза перед прыжком
+  delay = 0, // Смещение старта
   onSelectHotel,
   className = '',
 }) {
@@ -13,17 +13,17 @@ export default function HotelTicker({
   const [isTransitioning, setIsTransitioning] = useState(true);
   const [isHovered, setIsHovered] = useState(false);
 
-  // Высота карточки (150px) + отступ снизу (14px) = 164px на один шаг
-  const CARD_STEP = 164;
+  // Каждая карточка теперь крупнее (220px) + отступ (18px) = 238px.
+  // За счёт этого в колонке видно значительно меньше отелей (всего 2-3 крупных карточки)
+  const CARD_STEP = 238;
   const n = hotels.length;
 
-  // Троекратное дублирование для плавного перехода в конце круга
   const repeatedHotels = useMemo(() => {
     if (!hotels.length) return [];
     return [...hotels, ...hotels, ...hotels];
   }, [hotels]);
 
-  // Запуск периодического рывка
+  // Запуск периодического пружинистого прыжка
   useEffect(() => {
     if (isHovered || n === 0) return;
 
@@ -40,7 +40,6 @@ export default function HotelTicker({
     };
   }, [isHovered, n, stepInterval, delay]);
 
-  // Когда дошли до конца одного полного набора отелей — незаметно сбрасываем без анимации
   const handleTransitionEnd = () => {
     if (index >= n) {
       setIsTransitioning(false);
@@ -50,7 +49,6 @@ export default function HotelTicker({
 
   useEffect(() => {
     if (!isTransitioning) {
-      // Возвращаем плавный переход на следующем кадре браузера
       const raf = requestAnimationFrame(() => {
         requestAnimationFrame(() => {
           setIsTransitioning(true);
@@ -60,7 +58,6 @@ export default function HotelTicker({
     }
   }, [isTransitioning]);
 
-  // Смещение в зависимости от направления: вверх или вниз
   const offset =
     direction === 'up'
       ? -index * CARD_STEP
@@ -68,17 +65,18 @@ export default function HotelTicker({
 
   return (
     <div
-      className={`hotel-ticker hotel-ticker--stepped ${className}`}
+      className={`hotel-ticker hotel-ticker--bouncy ${className}`}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
-      title="Наведите курсор, чтобы приостановить движение"
+      title="Наведите мышь, чтобы остановить"
     >
       <div
         className="hotel-ticker__track"
         style={{
           transform: `translateY(${offset}px)`,
+          // Прыгающая пружинная кривая с овершутом (easeOutBack / spring overshoot)
           transition: isTransitioning
-            ? 'transform 0.65s cubic-bezier(0.2, 1, 0.3, 1)'
+            ? 'transform 0.8s cubic-bezier(0.34, 1.56, 0.64, 1)'
             : 'none',
         }}
         onTransitionEnd={handleTransitionEnd}

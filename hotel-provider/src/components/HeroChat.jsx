@@ -14,17 +14,36 @@ const CHANNELS = {
     label: 'Поддержка',
     icon: '💬',
     hello:
-      'Вы в чате со службой поддержки. Напишите ваш вопрос или опишите сложность — оператор ответит вам в ближайшее время.',
+      'Вы в чате со службой заботы. Напишите ваш вопрос или опишите сложность — оператор ответит вам в ближайшее время.',
     send: askSupport,
   },
 };
 
-const SUGGESTIONS = [
-  { icon: '🌊', text: 'Отель в Сочи у моря' },
-  { icon: '🏛️', text: 'В центре Москвы рядом с метро' },
-  { icon: '⭐', text: '5 звёзд со спа и завтраком' },
-  { icon: '💰', text: 'Отель в СПб до 6 000 ₽' },
-  { icon: '🏔️', text: 'Уютный отель в Красной Поляне' },
+const PROMPT_SUGGESTIONS = [
+  {
+    icon: '🌊',
+    title: 'Отель в Сочи у моря',
+    subtitle: 'Первая линия, бассейн и пляж',
+    prompt: 'Подбери хороший отель в Сочи на первой линии у моря с бассейном',
+  },
+  {
+    icon: '🏛️',
+    title: 'Центр Москвы у метро',
+    subtitle: '5 минут до метро и достопримечательностей',
+    prompt: 'Найди отель в центре Москвы рядом с метро до 10 000 рублей',
+  },
+  {
+    icon: '⭐',
+    title: 'Премиум СПА и релакс',
+    subtitle: '5 звёзд, термальный комплекс и завтраки',
+    prompt: 'Посоветуй лучшие спа-отели 5 звёзд с завтраком и бассейном',
+  },
+  {
+    icon: '💰',
+    title: 'Доступный Петербург',
+    subtitle: 'Уютные варианты до 6 000 ₽ за ночь',
+    prompt: 'Какие есть недорогие отели в Санкт-Петербурге до 6000 рублей?',
+  },
 ];
 
 const initial = () =>
@@ -43,15 +62,17 @@ export default function HeroChat({ hotelSlug, onSelectHotel }) {
 
   const messages = history[channel];
   const streaming = messages[messages.length - 1]?.streaming;
+  // Если в истории только первое приветствие — показываем красивый пустой экран в стиле ChatGPT/Claude
+  const hasUserMessages = messages.some((m) => m.role === 'user');
 
   // Автоскролл только внутри контейнера сообщений
   useEffect(() => {
-    if (messagesBoxRef.current) {
+    if (messagesBoxRef.current && hasUserMessages) {
       messagesBoxRef.current.scrollTop = messagesBoxRef.current.scrollHeight;
     }
-  }, [messages, pending]);
+  }, [messages, pending, hasUserMessages]);
 
-  // Загружаем историю переписки с сервера при старте
+  // Загружаем сохранённую переписку с сервера при старте
   useEffect(() => {
     if (loaded) return;
     setLoaded(true);
@@ -111,11 +132,6 @@ export default function HeroChat({ hotelSlug, onSelectHotel }) {
     handleSend();
   }
 
-  function handleChipClick(text) {
-    setInput(text);
-    handleSend(text);
-  }
-
   function resetChat() {
     setHistory((h) => ({
       ...h,
@@ -124,95 +140,114 @@ export default function HeroChat({ hotelSlug, onSelectHotel }) {
   }
 
   return (
-    <div className="seamless-hero-chat">
-      {/* 1. Блок сообщений чата: занимает всю высоту вверх, границы отсутствуют */}
-      <div ref={messagesBoxRef} className="seamless-hero-chat__messages" aria-live="polite">
-        {messages.map((m, i) => (
-          <div
-            key={i}
-            className={`seamless-hero-chat__msg seamless-hero-chat__msg--${m.role}${
-              m.error ? ' is-error' : ''
-            }`}
-          >
-            <div className="seamless-hero-chat__avatar">
-              {m.role === 'bot' ? (channel === 'ai' ? '🤖' : '💬') : '👤'}
-            </div>
-            <div className="seamless-hero-chat__msg-content">
-              <div className="seamless-hero-chat__bubble">{m.text}</div>
-              {m.hotels?.length > 0 && (
-                <div className="seamless-hero-chat__hotel-cards">
-                  <span className="seamless-hero-chat__hotel-title">Рекомендуемые отели:</span>
-                  <div className="seamless-hero-chat__hotel-list">
-                    {m.hotels.map((h) => (
-                      <Link
-                        key={h.slug}
-                        to={`/hotels/${h.slug}`}
-                        className="seamless-hero-chat__hotel-link"
-                        onClick={() => onSelectHotel?.(h.slug)}
-                      >
-                        <span className="seamless-hero-chat__hotel-icon">🏨</span>
-                        <span className="seamless-hero-chat__hotel-name">{h.name}</span>
-                        <span className="seamless-hero-chat__hotel-arrow">→</span>
-                      </Link>
-                    ))}
-                  </div>
+    <div className="chatgpt-view">
+      {/* 1. Если диалог ещё не начат — экран в стиле ChatGPT / Claude */}
+      {!hasUserMessages ? (
+        <div className="chatgpt-welcome">
+          <div className="chatgpt-welcome__badge">
+            <span className="chatgpt-welcome__sparkle">✨</span>
+            <span>ИИ-поиск и бронирование отелей</span>
+          </div>
+          <h1 className="chatgpt-welcome__heading">Куда вы хотите поехать?</h1>
+          <p className="chatgpt-welcome__sub">
+            Задайте вопрос нейросети или выберите готовую идею для отдыха
+          </p>
+
+          <div className="chatgpt-prompts">
+            {PROMPT_SUGGESTIONS.map((s, idx) => (
+              <button
+                key={idx}
+                type="button"
+                className="chatgpt-prompt-card"
+                disabled={pending}
+                onClick={(e) => {
+                  e.preventDefault();
+                  handleSend(s.prompt);
+                }}
+              >
+                <span className="chatgpt-prompt-card__icon">{s.icon}</span>
+                <div className="chatgpt-prompt-card__text">
+                  <span className="chatgpt-prompt-card__title">{s.title}</span>
+                  <span className="chatgpt-prompt-card__sub">{s.subtitle}</span>
                 </div>
-              )}
-            </div>
+                <span className="chatgpt-prompt-card__arrow">↑</span>
+              </button>
+            ))}
           </div>
-        ))}
-
-        {pending && !streaming && (
-          <div className="seamless-hero-chat__msg seamless-hero-chat__msg--bot seamless-hero-chat__typing">
-            <div className="seamless-hero-chat__avatar">{channel === 'ai' ? '🤖' : '💬'}</div>
-            <div className="seamless-hero-chat__bubble seamless-hero-chat__typing-bubble">
-              <span></span>
-              <span></span>
-              <span></span>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* 2. Чипсы с быстрыми подсказками над инпутом */}
-      <div className="seamless-hero-chat__suggestions">
-        <span className="seamless-hero-chat__sugg-label">Попробуйте:</span>
-        <div className="seamless-hero-chat__chips">
-          {SUGGESTIONS.map((s, idx) => (
+        </div>
+      ) : (
+        /* 2. Если переписка идёт — сквозной поток сообщений на всю высоту */
+        <div ref={messagesBoxRef} className="chatgpt-stream" aria-live="polite">
+          <div className="chatgpt-stream__header">
+            <span className="chatgpt-stream__indicator">
+              <span className="chatgpt-stream__dot" />
+              {channel === 'ai' ? 'ИИ-помощник активен' : 'Чат с поддержкой'}
+            </span>
             <button
-              key={idx}
               type="button"
-              className="seamless-hero-chat__chip"
-              disabled={pending}
+              className="chatgpt-stream__reset-btn"
               onClick={(e) => {
                 e.preventDefault();
-                handleChipClick(s.text);
+                resetChat();
               }}
+              title="Начать новый диалог"
             >
-              <span>{s.icon}</span>
-              <span>{s.text}</span>
+              + Новый диалог
             </button>
-          ))}
-        </div>
-        <button
-          type="button"
-          className="seamless-hero-chat__reset-link"
-          onClick={(e) => {
-            e.preventDefault();
-            resetChat();
-          }}
-          title="Сбросить историю диалога"
-        >
-          Очистить
-        </button>
-      </div>
+          </div>
 
-      {/* 3. Нижний бар: переключатель ИИ слева, инпут по центру, поддержка справа */}
-      <div className="seamless-hero-chat__dock">
-        {/* СЛЕВА: ИИ-помощник */}
+          {messages.map((m, i) => (
+            <div
+              key={i}
+              className={`chatgpt-msg chatgpt-msg--${m.role}${m.error ? ' is-error' : ''}`}
+            >
+              <div className="chatgpt-msg__avatar">
+                {m.role === 'bot' ? (channel === 'ai' ? '🤖' : '💬') : '👤'}
+              </div>
+              <div className="chatgpt-msg__body">
+                <div className="chatgpt-msg__content">{m.text}</div>
+                {m.hotels?.length > 0 && (
+                  <div className="chatgpt-hotels">
+                    <span className="chatgpt-hotels__label">Рекомендуемые варианты:</span>
+                    <div className="chatgpt-hotels__grid">
+                      {m.hotels.map((h) => (
+                        <Link
+                          key={h.slug}
+                          to={`/hotels/${h.slug}`}
+                          className="chatgpt-hotel-pill"
+                          onClick={() => onSelectHotel?.(h.slug)}
+                        >
+                          <span className="chatgpt-hotel-pill__icon">🏨</span>
+                          <span className="chatgpt-hotel-pill__name">{h.name}</span>
+                          <span className="chatgpt-hotel-pill__arrow">→</span>
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+
+          {pending && !streaming && (
+            <div className="chatgpt-msg chatgpt-msg--bot chatgpt-msg--typing">
+              <div className="chatgpt-msg__avatar">{channel === 'ai' ? '🤖' : '💬'}</div>
+              <div className="chatgpt-typing-dots">
+                <span></span>
+                <span></span>
+                <span></span>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 3. Плавающий инпут в стиле ChatGPT: выбор ИИ слева, строка по центру, поддержка справа */}
+      <div className="chatgpt-input-dock">
+        {/* Кнопка ИИ-помощник слева */}
         <button
           type="button"
-          className={`seamless-dock-btn seamless-dock-btn--left ${
+          className={`chatgpt-channel-pill chatgpt-channel-pill--left ${
             channel === 'ai' ? 'is-active' : ''
           }`}
           onClick={(e) => {
@@ -220,54 +255,44 @@ export default function HeroChat({ hotelSlug, onSelectHotel }) {
             setChannel('ai');
           }}
           aria-selected={channel === 'ai'}
-          title="ИИ-помощник (онлайн)"
+          title="Режим ИИ-помощника"
         >
-          <span className="seamless-dock-btn__icon">🤖</span>
-          <span className="seamless-dock-btn__label">ИИ-помощник</span>
-          <span className="seamless-dock-btn__pulse" />
+          <span className="chatgpt-channel-pill__icon">🤖</span>
+          <span className="chatgpt-channel-pill__label">ИИ-помощник</span>
+          <span className="chatgpt-channel-pill__dot" />
         </button>
 
-        {/* ЦЕНТР: Поле ввода */}
-        <form className="seamless-hero-chat__form" onSubmit={onSubmit}>
+        {/* Центральное поле ввода */}
+        <form className="chatgpt-bar" onSubmit={onSubmit}>
           <input
             ref={inputRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder={
               channel === 'ai'
-                ? 'Спросите ИИ: «Подбери отель в Сочи с видом на море»...'
-                : 'Напишите ваш вопрос в службу поддержки...'
+                ? 'Спросите о любом отеле, городе или пожеланиях...'
+                : 'Напишите вопрос службе заботы...'
             }
-            aria-label="Сообщение"
+            aria-label="Запрос к ИИ"
             disabled={pending}
           />
           <button
             type="submit"
-            className="seamless-hero-chat__submit-btn"
+            className="chatgpt-send-btn"
             disabled={!input.trim() || pending}
-            aria-label="Отправить"
+            aria-label="Отправить запрос"
+            title="Отправить запрос"
           >
-            <span>Спросить</span>
-            <svg
-              viewBox="0 0 24 24"
-              width="17"
-              height="17"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.4"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <line x1="22" y1="2" x2="11" y2="13"></line>
-              <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+              <path d="M12 4l-6 6h4v8h4v-8h4l-6-6z" />
             </svg>
           </button>
         </form>
 
-        {/* СПРАВА: Поддержка */}
+        {/* Кнопка Поддержка справа */}
         <button
           type="button"
-          className={`seamless-dock-btn seamless-dock-btn--right ${
+          className={`chatgpt-channel-pill chatgpt-channel-pill--right ${
             channel === 'support' ? 'is-active' : ''
           }`}
           onClick={(e) => {
@@ -275,10 +300,10 @@ export default function HeroChat({ hotelSlug, onSelectHotel }) {
             setChannel('support');
           }}
           aria-selected={channel === 'support'}
-          title="Чат с поддержкой"
+          title="Служба поддержки"
         >
-          <span className="seamless-dock-btn__icon">💬</span>
-          <span className="seamless-dock-btn__label">Поддержка</span>
+          <span className="chatgpt-channel-pill__icon">💬</span>
+          <span className="chatgpt-channel-pill__label">Поддержка</span>
         </button>
       </div>
     </div>
