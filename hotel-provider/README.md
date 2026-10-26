@@ -1,32 +1,131 @@
-# Отели России (React + Sass)
+# Отели России — Сервис подбора и бронирования с ИИ
 
-    npm install
-    npm run dev
+Полнофункциональный веб-сервис для поиска и бронирования отелей по всей России с интеграцией мультиагентной нейросети-консультанта.
 
-## Данные
-- `public/data/hotels.json` — список отелей (сейчас 7 вымышленных примеров). Формат — в `src/data/hotelSchema.js`.
-- Географические показатели (минуты пешком): `access: { metro, sea, center }`. `null` — рядом нет.
-  Если `access.<ключ>` не задан, но есть `lat`/`lon` отеля и `places.<ключ>` (точки из OSM/карт),
-  время считается автоматически по ближайшей точке (см. `walkMinutes` в `src/utils.js`).
-- Загрузка идёт через `src/services/hotelsService.js` — менять источник нужно только там.
+---
 
-## Чаты
-`src/services/chatApi.js` — `askAI` и `askSupport` (заглушки).
+## Архитектура проекта
 
-## Сервер чатов (Python + PostgreSQL)
-Подробности и настройки — в шапке `server/app.py`.
+```
+                          ┌────────────────────────┐
+                          │   Nginx (порт 8080)    │
+                          └───────────┬────────────┘
+                         /            │             \
+      ┌─────────────────┐             │              ┌─────────────────┐
+      │   Статика сайта │             │              │  /api/* запросы │
+      │  (React / Vite) │             │              └────────┬────────┘
+      └─────────────────┘             │                       │
+                                      ▼                       ▼
+                        ┌────────────────────────┐  ┌────────────────────┐
+                        │   3 реплики FastAPI    │  │  PostgreSQL (БД)   │
+                        │    (бэкенд сервиса)    │◄─┤ (история диалогов) │
+                        └─────────────┬──────────┘  └────────────────────┘
+                                      │
+                                      ▼
+                        ┌────────────────────────┐
+                        │  LLM-микросервис (8001)│
+                        │ (цепочка из 3 агентов) │
+                        └────────────────────────┘
+```
 
-Разработка (без базы, переписки хранятся в памяти процесса):
+### Основные компоненты:
+1. **Фронтенд (`src/`)**:
+   * **Первый экран (Hero Screen):** бесшовный сквозной дизайн в стиле современных нейросетей (ChatGPT, Claude) на 100vh.
+   * **Прыгающие тикеры отелей:** левая и правая колонки с крупными векторными карточками, двигающимися дискретными шагами с пружинной анимацией (`cubic-bezier(0.34, 1.56, 0.64, 1)`).
+   * **Умный чат:** быстрые подсказки, индикатор «Нейросеть думает... •••», невидимая подмешка фильтров каталога к запросу пользователя.
+   * **Каталог отелей:** подробные фильтры (город, звёзды, цена, расстояние до моря/метро/центра) и карточки отелей.
+2. **Бэкенд чатов (`server/app.py`)**:
+   * FastAPI сервер с потоковым SSE-эндпоинтом `/api/chat/stream`.
+   * Функция `stream_model`: обращается к Docker-микросервису нейросети по `LLM_SERVICE_URL`.
+   * Поддержка CORS, лимитирование запросов (rate limiter), управление очередью слотов.
+3. **Мультиагентная нейросеть (`LLM/`)**:
+   * Цепочка из 3 нейросетевых агентов (`REQUEST_BUILDER` → `DATA_FETCHER` → `ANSWER_COMPOSER`).
+   * Обернута в FastAPI микросервис на порту `8001` (`POST /generate`, `GET /health`).
 
-    cd server
-    python -m pip install -r requirements.txt
-    python -m uvicorn app:app --reload --port 8000
+---
 
-С PostgreSQL (таблица `chat_messages` создаётся сама; можно несколько воркеров):
+## Быстрый старт через Docker Compose (Рекомендуемый)
 
-    $env:DATABASE_URL="postgresql://user:password@localhost:5432/hotels"
-    python -m uvicorn app:app --workers 4 --port 8000
+Стенд поднимает всю систему: **Nginx (8080) + 3 воркера API + LLM-микросервис (8001) + PostgreSQL**:
 
-Полный стенд (Docker): `npm run build`, затем `docker compose up --build`, сайт на http://localhost:8080.
-Нейронка подключается в `stream_model()` в `server/app.py` (или переменной `MODEL_URL` для OpenAI-совместимого сервера).
-Поддержка: сообщения лежат в `chat_messages` с `channel = 'support'`; сейчас на них отвечает заглушка.
+```bash
+# 1. Перейдите в папку проекта и соберите фронтенд
+cd hotel-provider
+npm run build
+
+# 2. Запустите все сервисы в фоне
+docker compose up -d --build
+```
+
+После старта откройте в браузере:
+👉 **http://localhost:8080**
+
+Остановка стенда:
+```bash
+docker compose down
+```
+
+---
+
+## Режим разработки (без Docker)
+
+### 1. Запуск микросервиса нейросети:
+```bash
+cd hotel-provider/LLM
+pip install -r requirements.txt
+uvicorn server_llm:app --host 0.0.0.0 --port 8001
+```
+
+### 2. Запуск бэкенда (FastAPI):
+```bash
+cd hotel-provider/server
+pip install -r requirements.txt
+uvicorn app:app --port 8000 --reload
+```
+
+### 3. Запуск фронтенда (Vite):
+```bash
+cd hotel-provider
+npm install
+npm run dev
+```
+Фронтенд разработки доступен на **http://localhost:5173**.
+
+---
+
+## Команды для самостоятельного тестирования
+
+### 1. Проверка микросервиса нейросети (порт 8001)
+* **В браузере:** откройте интерактивную панель Swagger UI: **http://localhost:8001/docs**
+* **Через терминал (`curl`):**
+  ```bash
+  curl -X POST http://localhost:8001/generate \
+    -H "Content-Type: application/json" \
+    -d '{"message": "15 + 15"}'
+  ```
+
+### 2. Проверка потокового эндпоинта бэкенда (порт 8080)
+```bash
+curl -N -X POST http://localhost:8080/api/chat/stream \
+  -H "Content-Type: application/json" \
+  -d '{
+    "userId": "user-test-12345",
+    "channel": "ai",
+    "message": "2 + 2",
+    "context": {"path": "/"}
+  }'
+```
+В терминал вернется поток Server-Sent Events (SSE) с ответом от нейросети:
+```text
+event: token
+data: {"t": "14 * 0 = 0"}
+
+event: done
+data: {"hotels": []}
+```
+
+### 3. Проверка статуса контейнеров Docker Compose
+```bash
+docker compose ps
+```
+Все 6 контейнеров (`nginx`, `api-1`, `api-2`, `api-3`, `llm-1`, `db-1`) должны иметь статус `Up (healthy)`.

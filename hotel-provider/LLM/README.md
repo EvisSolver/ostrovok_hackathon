@@ -1,94 +1,103 @@
-# LLM Pipeline — подбор отелей
+# LLM Pipeline & Microservice — Подбор отелей
 
-Три нейросети работают цепочкой: запрос клиента → ТЗ → данные → готовый ответ.
-
-![Работа трёх агентов](assets/multi_a.gif)
+Цепочка из трёх специализированных нейросетей-агентов, работающих последовательно:
+запрос клиента → ТЗ (фильтры/пожелания) → данные из каталога → финальный вежливый ответ.
 
 ```
-You ─► LLM_REQUEST_BUILDER ─► LLM_DATA_FETCHER ─► LLM_ANSWER_COMPOSER ─► ответ
-       запрос → ТЗ            ТЗ → данные          данные → текст
+Пользователь ─► LLM_REQUEST_BUILDER ─► LLM_DATA_FETCHER ─► LLM_ANSWER_COMPOSER ─► Ответ
+                  запрос → ТЗ            ТЗ → данные          данные → текст
 ```
 
-## Файлы
+Сервис упакован в автономный Docker-микросервис с HTTP API на базе FastAPI, готовый к горизонтальному масштабированию.
 
-| Файл | Что внутри |
+---
+
+## Архитектура файлов
+
+| Файл | Назначение |
 |---|---|
-| `LLM.py` | Фасад: класс `LLM`, цепочка `pipeline()`, REPL `chat()`, точка входа `run()` |
-| `LLM_REQUEST_BUILDER.py` | `LLM_REQUEST_BUILDER` — 1-я модель: реплика клиента → ТЗ |
-| `LLM_DATA_FETCHER.py` | `LLM_DATA_FETCHER` — 2-я модель: ТЗ → данные |
-| `LLM_ANSWER_COMPOSER.py` | `LLM_ANSWER_COMPOSER` — 3-я модель: данные → ответ клиенту |
-| `config.py` | Настройки каждой ступени: `model_url`, `llm_key`, `prompt` |
-| `assets/multi_a.gif` | Иллюстрация работы трёх агентов |
+| `server_llm.py` | FastAPI HTTP-микросервис (`POST /generate`, `GET /health`) для вызова извне и Docker |
+| `LLM.py` | Фасад пайплайна: класс `LLM`, метод `pipeline()`, консольный REPL `chat()` |
+| `LLM_REQUEST_BUILDER/` | 1-я ступень: анализ запроса пользователя и формирование структуры ТЗ |
+| `LLM_DATA_FETCHER/` | 2-я ступень: подбор подходящих данных под параметры запроса |
+| `LLM_ANSWER_COMPOSER/` | 3-я ступень: компоновка финального текста ответа пользователю |
+| `config.py` | Конфигурация ступеней: URL модели, API-ключ, системные промпты |
+| `Dockerfile` | Сборка легковесного контейнера на `python:3.12-slim` с Uvicorn |
+| `requirements.txt` | Минимальные продакшн-зависимости (`fastapi`, `uvicorn`, `httpx`, `python-dotenv`, `pydantic`, `pystyle`) |
 
-## Запуск
+---
+
+## Способы запуска
+
+### Способ 1. Запуск в Docker (Рекомендуемый)
+
+Сборка и запуск контейнера:
+```bash
+# 1. Сборка образа
+docker build -t hotel-llm .
+
+# 2. Запуск контейнера
+docker run -d --name hotel-llm -p 8001:8001 --env-file .env hotel-llm
+```
+
+Проверка через интерактивную документацию Swagger UI:
+Откройте в браузере: **http://localhost:8001/docs**
+
+### Способ 2. Запуск локально через Python
 
 ```bash
-pip install httpx python-dotenv pystyle
-export OPEN_ROUTER_KEY=...      # ключ DeepInfra
+pip install -r requirements.txt
+export OPEN_ROUTER_KEY=ваш_ключ   # или задайте в .env
+
+# Запуск HTTP API:
+uvicorn server_llm:app --host 0.0.0.0 --port 8001
+
+# Или запуск интерактивного консольного REPL:
 python LLM.py
 ```
 
-Выход: `q`, `quit`, `exit`, `e` или `Ctrl+C`.
+---
 
-Один запрос без REPL:
+## API Микросервиса
+
+### 1. Проверка состояния: `GET /health`
+```bash
+curl http://localhost:8001/health
+```
+**Ответ:** `{"status": "ok"}`
+
+### 2. Генерация ответа: `POST /generate`
+```bash
+curl -X POST http://localhost:8001/generate \
+  -H "Content-Type: application/json" \
+  -d '{"message": "Подбери отель в Сочи у моря"}'
+```
+**Ответ:**
+```json
+{
+  "response": "Финальный текст ответа...",
+  "details": {
+    "request_builder": "ТЗ от первого агента...",
+    "data_fetcher": "Данные от второго агента..."
+  }
+}
+```
+
+---
+
+## Использование в Python-коде
 
 ```python
 import asyncio
 from LLM import LLM
 from config import REQUEST_BUILDER, DATA_FETCHER, ANSWER_COMPOSER
 
-result = asyncio.run(
-    LLM(REQUEST_BUILDER, DATA_FETCHER, ANSWER_COMPOSER).pipeline("нужен тихий отель 3-4 звезды")
-)
-print(result["T_F_U"])     # финальный ответ клиенту
+async def main():
+    service = LLM(REQUEST_BUILDER, DATA_FETCHER, ANSWER_COMPOSER)
+    result = await service.pipeline("Отель в центре Москвы до 10 000 рублей")
+    print("ТЗ:", result["t_f_d_f"])
+    print("Данные:", result["t_f_a_c"])
+    print("Ответ клиенту:", result["T_F_U"])
+
+asyncio.run(main())
 ```
-
-## Что возвращает `pipeline()`
-
-| Ключ | От кого | Смысл |
-|---|---|---|
-| `t_f_d_f` | 1-я модель | ТЗ для второй ступени |
-| `t_f_a_c` | 2-я модель | сырые данные по ТЗ |
-| `T_F_U` | 3-я модель | готовый ответ пользователю |
-
-`chat()` печатает все три по очереди — так видно, на какой ступени что-то пошло не так.
-
-## Настройка
-
-Каждая ступень получает свой словарь — модель, ключ и промпт меняются независимо:
-
-```python
-REQUEST_BUILDER = {
-    "model_url": "https://api.deepinfra.com/v1/inference/deepseek-ai/DeepSeek-V4.1-Flash-1017",
-    "llm_key": os.getenv("OPEN_ROUTER_KEY"),
-    "prompt": "..."
-}
-DATA_FETCHER    = { "model_url": "...", "llm_key": ..., "prompt": "..." }
-ANSWER_COMPOSER = { "model_url": "...", "llm_key": ..., "prompt": "..." }
-```
-
-Ключ хранится в `.env`:
-
-```dotenv
-OPEN_ROUTER_KEY=sk-...
-```
-
-`.env` — в `.gitignore`, ключи в коде не хардкодить.
-
-## Контракт модуля
-
-Любая ступень — класс с конструктором `__init__(self, config: dict)` и одним асинхронным методом:
-
-```python
-async def llm_response_XXX(self, client: httpx.AsyncClient, user_input: str) -> str
-```
-
-Внутри: собрать промпт → `client.stream(...)` → `async for line in r.aiter_lines()` → вернуть строку.
-`httpx.AsyncClient` один на всю цепочку, создаётся в `LLM.pipeline()`.
-
-## Известные проблемы / TODO
-
-- Промпты используют Llama-3-разметку (`<|begin_of_text|>`), а `model_url` указывает на DeepSeek — либо сменить URL на `NousResearch/Hermes-3-Llama-3.1-70B`, либо перейти на `https://api.deepinfra.com/v1/openai/chat/completions` с обычными `messages`.
-- `user_is_asking = True` в ступенях и `config.py` — мёртвый код, всегда `True`.
-- `line[5:]` → `line[6:]` и проверка `line.startswith("data: {")`: иначе `data: [DONE]` и финальный чанк с `"token": null` дают `JSONDecodeError` / `TypeError`.
-- `try/except` внутри ступеней превращает любую ошибку в `None` — лучше пробрасывать наверх, в `chat()`.
