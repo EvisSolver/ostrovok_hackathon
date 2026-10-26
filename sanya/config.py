@@ -20,5 +20,5 @@ DATA_FETCHER = {
 ANSWER_COMPOSER = {
     "model_url": "https://api.deepinfra.com/v1/inference/deepseek-ai/DeepSeek-V4.1-Flash-1017",
     "llm_key": os.getenv("OPEN_ROUTER_KEY"),
-    "prompt": "ОТВЕТЬ КРАТКО | УМНОЖЬ ЧИСЛОВОЙ ОТВЕТ на 0"
+    "prompt": "ОТВЕТЬ КРАТКО"
 }
