@@ -1,6 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import HotelCard from '../components/HotelCard.jsx';
 import Filters, { EMPTY_FILTERS } from '../components/Filters.jsx';
+import HotelTicker from '../components/HotelTicker.jsx';
+import HeroChat from '../components/HeroChat.jsx';
+import { DUMMY_HOTELS_LEFT, DUMMY_HOTELS_RIGHT } from '../data/dummyHotels.js';
 import { getHotels } from '../services/hotelsService.js';
 import { ACCESS, plural } from '../utils.js';
 
@@ -21,13 +24,22 @@ export default function HomePage() {
   const [query, setQuery] = useState('');
   const [filters, setFilters] = useState(EMPTY_FILTERS);
   const [sort, setSort] = useState('default');
+  const catalogRef = useRef(null);
 
   useEffect(() => {
-    getHotels().then((h) => { setHotels(h); setStatus('ok'); }).catch(() => setStatus('error'));
+    getHotels()
+      .then((h) => {
+        setHotels(h);
+        setStatus('ok');
+      })
+      .catch(() => setStatus('error'));
   }, []);
 
   const cities = useMemo(() => [...new Set(hotels.map((h) => h.city))].sort(), [hotels]);
-  const priceMax = useMemo(() => Math.max(1000, Math.ceil(Math.max(0, ...hotels.map((h) => h.priceFrom)) / 500) * 500), [hotels]);
+  const priceMax = useMemo(
+    () => Math.max(1000, Math.ceil(Math.max(0, ...hotels.map((h) => h.priceFrom)) / 500) * 500),
+    [hotels]
+  );
 
   const list = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -37,43 +49,207 @@ export default function HomePage() {
       .filter((h) => !f.city || h.city === f.city)
       .filter((h) => !f.stars.length || f.stars.includes(h.stars))
       .filter((h) => f.maxPrice == null || h.priceFrom <= f.maxPrice)
-      .filter((h) => ['metro', 'sea', 'center'].every((k) => f[k] == null || (h.access[k] != null && h.access[k] <= f[k])))
+      .filter((h) =>
+        ['metro', 'sea', 'center'].every(
+          (k) => f[k] == null || (h.access[k] != null && h.access[k] <= f[k])
+        )
+      )
       .sort(SORTS[sort].fn);
   }, [hotels, query, filters, sort]);
 
   const highlight = ['metro', 'sea', 'center'].includes(sort) ? sort : null;
 
+  function scrollToCatalog(e) {
+    if (e) e.preventDefault();
+    catalogRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }
+
+  function handleSelectTickerHotel(tickerHotel) {
+    const existing = hotels.find((h) => h.slug === tickerHotel.slug);
+    if (existing) {
+      setQuery(existing.name);
+    } else if (tickerHotel.city) {
+      setFilters((prev) => ({ ...prev, city: tickerHotel.city }));
+    }
+    scrollToCatalog();
+  }
+
   return (
-    <>
-      <section className="hero">
-        <div className="container">
-          <h1>Отели России</h1>
-          <form className="search" onSubmit={(e) => e.preventDefault()}>
-            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Город или название отеля" aria-label="Поиск" />
-            <button type="submit" className="btn btn--orange">Найти</button>
-          </form>
+    <div className="home-page-wrap">
+      {/* 1. Первый экран: Столбики отелей слева и справа (идут рывком), по центру бесшовный чат на всю высоту */}
+      <section className="landing-hero" aria-label="Главный экран">
+        {/* Левая колонка отелей (рывок вверх каждые 3.2 с) */}
+        <aside className="landing-hero__col landing-hero__col--left" aria-hidden="true">
+          <HotelTicker
+            hotels={DUMMY_HOTELS_LEFT}
+            direction="up"
+            stepInterval={3200}
+            delay={0}
+            onSelectHotel={handleSelectTickerHotel}
+          />
+        </aside>
+
+        {/* Центральный блок: бесшовный чат на всю высоту страницы */}
+        <div className="landing-hero__center">
+          <HeroChat onSelectHotel={() => {}} />
+
+          {/* Подсказка для скролла к каталогу */}
+          <a
+            href="#catalog"
+            className="landing-hero__scroll-cue"
+            onClick={scrollToCatalog}
+            title="Перейти к поиску и каталогу"
+          >
+            <span>Листайте вниз к каталогу и фильтрам</span>
+            <span className="landing-hero__scroll-arrow">↓</span>
+          </a>
         </div>
+
+        {/* Правая колонка отелей (рывок вниз с полушаговым смещением по времени) */}
+        <aside className="landing-hero__col landing-hero__col--right" aria-hidden="true">
+          <HotelTicker
+            hotels={DUMMY_HOTELS_RIGHT}
+            direction="down"
+            stepInterval={3200}
+            delay={1600}
+            onSelectHotel={handleSelectTickerHotel}
+          />
+        </aside>
       </section>
 
-      <div className="container home">
-        <Filters value={filters} onChange={setFilters} cities={cities} priceMax={priceMax} />
-
-        <section className="results">
-          <div className="results__bar">
-            <p>{status === 'ok' ? `Найдено ${list.length} ${plural(list.length, 'отель', 'отеля', 'отелей')}` : ' '}</p>
-            <label>Сортировка
-              <select value={sort} onChange={(e) => setSort(e.target.value)}>
-                {Object.entries(SORTS).map(([k, s]) => <option key={k} value={k}>{s.label}</option>)}
-              </select>
-            </label>
+      {/* 2. Листаешь вниз: поиск, фильтрация, список доступных отелей */}
+      <section id="catalog" ref={catalogRef} className="catalog-section" aria-label="Каталог отелей">
+        <div className="container">
+          <div className="catalog-section__head">
+            <div>
+              <h2>Каталог и поиск доступных отелей</h2>
+              <p className="muted">
+                Используйте быстрый поиск по городам или настройте фильтры под ваши даты и бюджет
+              </p>
+            </div>
           </div>
 
-          {status === 'loading' && <p className="muted">Загрузка…</p>}
-          {status === 'error' && <p className="muted">Не удалось загрузить отели. Проверьте файл public/data/hotels.json.</p>}
-          {status === 'ok' && list.length === 0 && <p className="muted">Ничего не найдено. Измените фильтры или нажмите «Сбросить».</p>}
-          <div className="list">{list.map((h) => <HotelCard key={h.slug} hotel={h} highlight={highlight} />)}</div>
-        </section>
-      </div>
-    </>
+          {/* Поисковая строка в начале каталога */}
+          <div className="catalog-search">
+            <form className="catalog-search__form" onSubmit={(e) => e.preventDefault()}>
+              <div className="catalog-search__field">
+                <svg
+                  className="catalog-search__icon"
+                  viewBox="0 0 24 24"
+                  width="20"
+                  height="20"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <circle cx="11" cy="11" r="8"></circle>
+                  <line x1="21" y1="2" x2="16.65" y2="16.65"></line>
+                </svg>
+                <input
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Поиск по названию отеля, городу или региону (например: Сочи, Тверская, Москва)..."
+                  aria-label="Поиск по каталогу отелей"
+                />
+                {query && (
+                  <button
+                    type="button"
+                    className="catalog-search__clear"
+                    onClick={() => setQuery('')}
+                    title="Очистить поиск"
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
+              <button type="submit" className="btn btn--orange catalog-search__btn">
+                Найти
+              </button>
+            </form>
+
+            {/* Быстрые фильтры городов */}
+            <div className="catalog-search__quick-cities">
+              <span className="muted">Города:</span>
+              <button
+                type="button"
+                className={`catalog-search__city-pill ${!filters.city ? 'is-active' : ''}`}
+                onClick={() => setFilters((f) => ({ ...f, city: '' }))}
+              >
+                Все города
+              </button>
+              {cities.map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  className={`catalog-search__city-pill ${filters.city === c ? 'is-active' : ''}`}
+                  onClick={() => setFilters((f) => ({ ...f, city: c }))}
+                >
+                  {c}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Фильтры + Список отелей */}
+          <div className="home">
+            <Filters
+              value={filters}
+              onChange={setFilters}
+              cities={cities}
+              priceMax={priceMax}
+            />
+
+            <div className="results">
+              <div className="results__bar">
+                <p>
+                  {status === 'ok'
+                    ? `Найдено ${list.length} ${plural(list.length, 'отель', 'отеля', 'отелей')}`
+                    : ' '}
+                </p>
+                <label>
+                  Сортировка
+                  <select value={sort} onChange={(e) => setSort(e.target.value)}>
+                    {Object.entries(SORTS).map(([k, s]) => (
+                      <option key={k} value={k}>
+                        {s.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+
+              {status === 'loading' && <p className="muted">Загрузка отелей…</p>}
+              {status === 'error' && (
+                <p className="muted">
+                  Не удалось загрузить отели. Проверьте файл public/data/hotels.json.
+                </p>
+              )}
+              {status === 'ok' && list.length === 0 && (
+                <div className="catalog-empty">
+                  <p className="muted">Ничего не найдено по заданным параметрам.</p>
+                  <button
+                    type="button"
+                    className="btn btn--orange"
+                    onClick={() => {
+                      setQuery('');
+                      setFilters(EMPTY_FILTERS);
+                    }}
+                  >
+                    Сбросить фильтры и поиск
+                  </button>
+                </div>
+              )}
+              <div className="list">
+                {list.map((h) => (
+                  <HotelCard key={h.slug} hotel={h} highlight={highlight} />
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
   );
 }
