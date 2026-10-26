@@ -578,6 +578,36 @@
   }
 }
 
+/* Пометка о том, что фильтры сайта учитываются в чате */
+.chatgpt-filter-note {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: .4rem;
+  font-size: .78rem;
+  font-weight: 600;
+  color: $muted;
+  margin-top: .4rem;
+  margin-bottom: .2rem;
+  text-align: center;
+  flex-wrap: wrap;
+
+  &__icon {
+    font-size: .85rem;
+    color: $orange;
+  }
+
+  &__tags {
+    display: inline-block;
+    padding: .1rem .55rem;
+    border-radius: 999px;
+    background: rgba($blue, .12);
+    color: #0b72b9;
+    font-weight: 700;
+    font-size: .74rem;
+  }
+}
+
 /* 4. ПЛАВАЮЩИЙ ИНПУТ В СТИЛЕ CHATGPT: ИИ СЛЕВА, СТРОКА ВВОДА, ПОДДЕРЖКА СПРАВА */
 .chatgpt-input-dock {
   display: flex;

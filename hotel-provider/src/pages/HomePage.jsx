@@ -24,6 +24,7 @@ export default function HomePage() {
   const [query, setQuery] = useState('');
   const [filters, setFilters] = useState(EMPTY_FILTERS);
   const [sort, setSort] = useState('default');
+  const [scrollProgress, setScrollProgress] = useState(0);
   const catalogRef = useRef(null);
 
   useEffect(() => {
@@ -34,6 +35,22 @@ export default function HomePage() {
       })
       .catch(() => setStatus('error'));
   }, []);
+
+  // Отслеживание скролла для плавного исчезновения плашки с ускорением к концу
+  useEffect(() => {
+    const handleScroll = () => {
+      const y = window.scrollY || 0;
+      const maxDistance = 220; // Дистанция скролла для полного исчезновения
+      const progress = Math.min(1, Math.max(0, y / maxDistance));
+      setScrollProgress(progress);
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  // Прогрессивное исчезновение с ускорением к концу (степенная кривая ease-in: 1 - progress^2.8)
+  const cueOpacity = Math.max(0, 1 - Math.pow(scrollProgress, 2.8));
 
   const cities = useMemo(() => [...new Set(hotels.map((h) => h.city))].sort(), [hotels]);
   const priceMax = useMemo(
@@ -76,42 +93,52 @@ export default function HomePage() {
 
   return (
     <div className="home-page-wrap">
-      {/* 1. Первый экран: Столбики отелей слева и справа (идут рывком), по центру бесшовный чат на всю высоту */}
+      {/* 1. Первый экран: Столбики отелей слева и справа (идут рывком), по центру сквозной чат */}
       <section className="landing-hero" aria-label="Главный экран">
-        {/* Левая колонка отелей (рывок вверх каждые 3.2 с) */}
+        {/* Левая колонка отелей (прыгает вверх) */}
         <aside className="landing-hero__col landing-hero__col--left" aria-hidden="true">
           <HotelTicker
             hotels={DUMMY_HOTELS_LEFT}
             direction="up"
-            stepInterval={3200}
+            stepInterval={3600}
             delay={0}
             onSelectHotel={handleSelectTickerHotel}
           />
         </aside>
 
-        {/* Центральный блок: бесшовный чат на всю высоту страницы */}
+        {/* Центральный блок: чат с невидимо передаваемыми фильтрами */}
         <div className="landing-hero__center">
-          <HeroChat onSelectHotel={() => {}} />
+          <HeroChat
+            filters={filters}
+            query={query}
+            onSelectHotel={() => {}}
+          />
 
-          {/* Подсказка для скролла к каталогу */}
+          {/* Плашка «Листайте вниз к каталогу и фильтрам» — исчезает с ускорением к концу */}
           <a
             href="#catalog"
             className="landing-hero__scroll-cue"
             onClick={scrollToCatalog}
             title="Перейти к поиску и каталогу"
+            style={{
+              opacity: cueOpacity,
+              pointerEvents: cueOpacity < 0.05 ? 'none' : 'auto',
+              transform: `translateY(${scrollProgress * 8}px)`,
+              transition: 'box-shadow 0.2s ease',
+            }}
           >
             <span>Листайте вниз к каталогу и фильтрам</span>
             <span className="landing-hero__scroll-arrow">↓</span>
           </a>
         </div>
 
-        {/* Правая колонка отелей (рывок вниз с полушаговым смещением по времени) */}
+        {/* Правая колонка отелей (прыгает вниз) */}
         <aside className="landing-hero__col landing-hero__col--right" aria-hidden="true">
           <HotelTicker
             hotels={DUMMY_HOTELS_RIGHT}
             direction="down"
-            stepInterval={3200}
-            delay={1600}
+            stepInterval={3600}
+            delay={1800}
             onSelectHotel={handleSelectTickerHotel}
           />
         </aside>

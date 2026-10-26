@@ -7,7 +7,7 @@ const CHANNELS = {
   support: { label: 'Поддержка', hello: 'Вы в чате с поддержкой. Опишите вопрос — ответим как можно скорее.', send: askSupport },
 };
 
-const initial = () => Object.fromEntries(Object.entries(CHANNELS).map(([k, c]) => [k, [{ role: 'bot', text: c.hello }]]));
+const initial = () => Object.fromEntries(Object.keys(CHANNELS).map((k) => [k, []]));
 
 export default function ChatWidget({ hotelSlug }) {
   const [open, setOpen] = useState(false);
@@ -16,20 +16,24 @@ export default function ChatWidget({ hotelSlug }) {
   const [input, setInput] = useState('');
   const [pending, setPending] = useState(false);
   const [loaded, setLoaded] = useState(false);
-  const endRef = useRef(null);
+  const messagesBoxRef = useRef(null);
 
   const messages = history[channel];
   const streaming = messages[messages.length - 1]?.streaming;
 
-  useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, open, pending]);
+  useEffect(() => {
+    if (messagesBoxRef.current) {
+      messagesBoxRef.current.scrollTop = messagesBoxRef.current.scrollHeight;
+    }
+  }, [messages, open, pending]);
 
-  // при первом открытии подтягиваем сохранённую переписку с сервера (работает и после перезапуска браузера)
+  // при первом открытии подтягиваем сохранённую переписку с сервера
   useEffect(() => {
     if (!open || loaded) return;
     setLoaded(true);
     const keys = Object.keys(CHANNELS);
     Promise.all(keys.map((k) => loadHistory(k).catch(() => []))).then((res) =>
-      setHistory((h) => Object.fromEntries(keys.map((k, i) => [k, h[k].length === 1 && res[i].length ? [h[k][0], ...res[i]] : h[k]])))
+      setHistory((h) => Object.fromEntries(keys.map((k, i) => [k, res[i] || []])))
     );
   }, [open, loaded]);
 
@@ -84,7 +88,14 @@ export default function ChatWidget({ hotelSlug }) {
             <button className="chat__close" onClick={() => setOpen(false)} aria-label="Закрыть чат">×</button>
           </div>
 
-          <div className="chat__messages" aria-live="polite">
+          <div ref={messagesBoxRef} className="chat__messages" aria-live="polite">
+            {messages.length === 0 && (
+              <div className="chat__msg chat__msg--bot chat__empty">
+                {channel === 'ai'
+                  ? 'Здравствуйте! Задайте вопрос по отелю или подбору номеров.'
+                  : 'Здравствуйте! Опишите ваш вопрос — оператор поддержки на связи.'}
+              </div>
+            )}
             {messages.map((m, i) => (
               <div key={i} className={`chat__msg chat__msg--${m.role}${m.error ? ' is-error' : ''}`}>
                 {m.text}
@@ -94,7 +105,6 @@ export default function ChatWidget({ hotelSlug }) {
               </div>
             ))}
             {pending && !streaming && <div className="chat__msg chat__msg--bot chat__typing">Печатает…</div>}
-            <div ref={endRef} />
           </div>
 
           <form className="chat__form" onSubmit={onSubmit}>

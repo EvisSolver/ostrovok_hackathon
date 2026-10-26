@@ -31,16 +31,38 @@ export function getUserId() {
   }
 }
 
-function buildRequest(channel, messages, { hotelSlug } = {}) {
+export function formatFiltersContext(filters, query) {
+  if (!filters && !query) return '';
+  const parts = [];
+  if (query?.trim()) parts.push(`поисковый запрос "${query.trim()}"`);
+  if (filters?.city) parts.push(`город: ${filters.city}`);
+  if (filters?.stars?.length) parts.push(`звёзды: ${filters.stars.join(', ')}★`);
+  if (filters?.maxPrice) parts.push(`бюджет: до ${filters.maxPrice.toLocaleString('ru-RU')} ₽`);
+  if (filters?.sea) parts.push(`до моря: до ${filters.sea} мин пешком`);
+  if (filters?.metro) parts.push(`до метро: до ${filters.metro} мин пешком`);
+  if (filters?.center) parts.push(`до центра: до ${filters.center} мин пешком`);
+  if (!parts.length) return '';
+  return `\n\n[Системный контекст: пользователь настроил фильтры в каталоге: ${parts.join(', ')}. Обязательно учитывай их при подборе и рекомендациях отелей!]`;
+}
+
+function buildRequest(channel, messages, ctx = {}) {
   const last = [...messages].reverse().find((m) => m.role === 'user');
+  const filterAddon = formatFiltersContext(ctx.filters, ctx.query);
+  const augmentedMessage = last?.text ? `${last.text}${filterAddon}` : '';
+
   return {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       userId: getUserId(),
       channel,
-      message: last?.text ?? '',
-      context: { path: window.location.pathname, hotelSlug: hotelSlug ?? null },
+      message: augmentedMessage,
+      context: {
+        path: window.location.pathname,
+        hotelSlug: ctx.hotelSlug ?? null,
+        filters: ctx.filters ?? null,
+        query: ctx.query ?? null,
+      },
     }),
   };
 }
@@ -69,31 +91,40 @@ async function readStream(body, onToken) {
   return { text, hotels };
 }
 
-async function mockAIResponse(lastMessage, onToken) {
+async function mockAIResponse(lastMessage, onToken, ctx = {}) {
   const q = (lastMessage?.text ?? '').toLowerCase();
+  const filters = ctx.filters || {};
+  const query = (ctx.query || '').toLowerCase();
   let text = '';
   let hotels = [];
 
-  if (q.includes('сочи') || q.includes('море') || q.includes('пляж')) {
-    text = 'Для отдыха у моря в Сочи рекомендую обратить внимание на Отель «Дендрарий» (5 звёзд, 3 минуты до пляжа) и Гостиницу «Приморская» (3 звезды, отличный бюджетный вариант у набережной).';
+  const isSochi = q.includes('сочи') || q.includes('море') || q.includes('пляж') || filters.city === 'Сочи' || filters.sea != null || query.includes('сочи');
+  const isMoscow = q.includes('москв') || q.includes('тверск') || q.includes('кремл') || filters.city === 'Москва' || query.includes('москв');
+  const isSpb = q.includes('петербург') || q.includes('питер') || q.includes('невск') || q.includes('спб') || filters.city === 'Санкт-Петербург' || query.includes('петербург') || query.includes('питер');
+  const isBudget = q.includes('дешев') || q.includes('недорог') || q.includes('бюджет') || (filters.maxPrice && filters.maxPrice <= 5000);
+
+  const filterNote = filters.city ? ` С учётом вашего фильтра «${filters.city}»:` : '';
+
+  if (isSochi) {
+    text = `Для отдыха у моря в Сочи${filterNote} рекомендую обратить внимание на Отель «Дендрарий» (5 звёзд, 3 минуты до пляжа) и Гостиницу «Приморская» (3 звезды, отличный доступный вариант у набережной).`;
     hotels = [
       { slug: 'dendrariy-sochi', name: 'Отель «Дендрарий»' },
       { slug: 'primorskaya-sochi', name: 'Гостиница «Приморская»' },
     ];
-  } else if (q.includes('москв') || q.includes('тверск') || q.includes('кремл')) {
-    text = 'В Москве отличный выбор — Отель «Тверская» (5 звёзд, 5 минут до метро Маяковская, исторический центр).';
+  } else if (isMoscow) {
+    text = `В Москве${filterNote} отличный выбор — Отель «Тверская» (5 звёзд, 5 минут до метро Маяковская, окна на Тверскую улицу).`;
     hotels = [{ slug: 'tverskaya-moscow', name: 'Отель «Тверская»' }];
-  } else if (q.includes('петербург') || q.includes('питер') || q.includes('невск') || q.includes('спб')) {
-    text = 'В Санкт-Петербурге советую Отель «Невский» (4 звезды, у Невского проспекта, до метро 3 минуты пешком).';
+  } else if (isSpb) {
+    text = `В Санкт-Петербурге${filterNote} советую Отель «Невский» (4 звезды, у Невского проспекта, до метро 3 минуты пешком).`;
     hotels = [{ slug: 'nevsky-spb', name: 'Отель «Невский»' }];
-  } else if (q.includes('дешев') || q.includes('недорог') || q.includes('бюджет')) {
-    text = 'Среди доступных вариантов обратите внимание на Гостиницу «Приморская» в Сочи (от 3 900 ₽ за ночь) и Отель «Невский» в Санкт-Петербурге (от 6 200 ₽).';
+  } else if (isBudget) {
+    text = `Среди доступных вариантов с комфортной ценой${filterNote} обратите внимание на Гостиницу «Приморская» в Сочи (от 3 900 ₽ за ночь) и Отель «Невский» в Санкт-Петербурге (от 6 200 ₽).`;
     hotels = [
       { slug: 'primorskaya-sochi', name: 'Гостиница «Приморская»' },
       { slug: 'nevsky-spb', name: 'Отель «Невский»' },
     ];
   } else {
-    text = 'Я подобрал подходящие отели: Отель «Тверская» в Москве, Отель «Невский» в Санкт-Петербурге и Отель «Дендрарий» в Сочи. Листайте страницу вниз, чтобы отфильтровать отели по городу и цене!';
+    text = `Я подобрал отличные отели с учётом ваших пожеланий${filterNote}: Отель «Тверская» в Москве, Отель «Невский» в Санкт-Петербурге и Отель «Дендрарий» в Сочи. Все выбранные фильтры применены!`;
     hotels = [
       { slug: 'tverskaya-moscow', name: 'Отель «Тверская»' },
       { slug: 'dendrariy-sochi', name: 'Отель «Дендрарий»' },
@@ -106,7 +137,7 @@ async function mockAIResponse(lastMessage, onToken) {
   for (let i = 0; i < words.length; i++) {
     const chunk = (i === 0 ? '' : ' ') + words[i];
     onToken?.(chunk);
-    await sleep(25);
+    await sleep(22);
   }
   return { text, hotels };
 }
@@ -128,12 +159,12 @@ export async function askAI(messages, ctx, onToken) {
     } catch (err) {
       // Если сервер оффлайн при локальной разработке фронтенда — используем умный фоллбек
       if (attempt === 3) {
-        return await mockAIResponse(last, onToken);
+        return await mockAIResponse(last, onToken, ctx);
       }
       await sleep(300);
     }
   }
-  return await mockAIResponse(last, onToken);
+  return await mockAIResponse(last, onToken, ctx);
 }
 
 export async function askSupport(messages, ctx) {

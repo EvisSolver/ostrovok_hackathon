@@ -6,15 +6,11 @@ const CHANNELS = {
   ai: {
     label: 'ИИ-помощник',
     icon: '🤖',
-    hello:
-      'Здравствуйте! Я ваш персональный ИИ-гид по отелям России. Назовите город, даты или пожелания (у моря, спа, центр, бассейн, бюджет) — и я моментально подберу лучшие варианты.',
     send: askAI,
   },
   support: {
     label: 'Поддержка',
     icon: '💬',
-    hello:
-      'Вы в чате со службой заботы. Напишите ваш вопрос или опишите сложность — оператор ответит вам в ближайшее время.',
     send: askSupport,
   },
 };
@@ -46,12 +42,25 @@ const PROMPT_SUGGESTIONS = [
   },
 ];
 
-const initial = () =>
-  Object.fromEntries(
-    Object.entries(CHANNELS).map(([k, c]) => [k, [{ role: 'bot', text: c.hello }]])
-  );
+// Без стартовых сообщений по умолчанию: чат чистый с самого начала
+const initial = () => ({
+  ai: [],
+  support: [],
+});
 
-export default function HeroChat({ hotelSlug, onSelectHotel }) {
+function getActiveFiltersList(filters, query) {
+  const list = [];
+  if (query?.trim()) list.push(`«${query.trim()}»`);
+  if (filters?.city) list.push(filters.city);
+  if (filters?.stars?.length) list.push(`${filters.stars.join(', ')}★`);
+  if (filters?.maxPrice) list.push(`до ${filters.maxPrice.toLocaleString('ru-RU')} ₽`);
+  if (filters?.sea) list.push(`море ≤${filters.sea}м`);
+  if (filters?.metro) list.push(`метро ≤${filters.metro}м`);
+  if (filters?.center) list.push(`центр ≤${filters.center}м`);
+  return list;
+}
+
+export default function HeroChat({ hotelSlug, filters, query, onSelectHotel }) {
   const [channel, setChannel] = useState('ai');
   const [history, setHistory] = useState(initial);
   const [input, setInput] = useState('');
@@ -62,8 +71,8 @@ export default function HeroChat({ hotelSlug, onSelectHotel }) {
 
   const messages = history[channel];
   const streaming = messages[messages.length - 1]?.streaming;
-  // Если в истории только первое приветствие — показываем красивый пустой экран в стиле ChatGPT/Claude
-  const hasUserMessages = messages.some((m) => m.role === 'user');
+  const hasUserMessages = messages.length > 0;
+  const activeFilters = getActiveFiltersList(filters, query);
 
   // Автоскролл только внутри контейнера сообщений
   useEffect(() => {
@@ -72,19 +81,14 @@ export default function HeroChat({ hotelSlug, onSelectHotel }) {
     }
   }, [messages, pending, hasUserMessages]);
 
-  // Загружаем сохранённую переписку с сервера при старте
+  // Загружаем сохранённую переписку с сервера при старте (если была)
   useEffect(() => {
     if (loaded) return;
     setLoaded(true);
     const keys = Object.keys(CHANNELS);
     Promise.all(keys.map((k) => loadHistory(k).catch(() => []))).then((res) =>
       setHistory((h) =>
-        Object.fromEntries(
-          keys.map((k, i) => [
-            k,
-            h[k].length === 1 && res[i].length ? [h[k][0], ...res[i]] : h[k],
-          ])
-        )
+        Object.fromEntries(keys.map((k, i) => [k, res[i] && res[i].length ? res[i] : []]))
       )
     );
   }, [loaded]);
@@ -96,6 +100,7 @@ export default function HeroChat({ hotelSlug, onSelectHotel }) {
     if (!text || pending) return;
 
     const ch = channel;
+    // Юзер видит только свой чистый введенный текст
     const next = [...history[ch], { role: 'user', text }];
     update(ch, () => next);
     setInput('');
@@ -110,7 +115,8 @@ export default function HeroChat({ hotelSlug, onSelectHotel }) {
       });
 
     try {
-      const reply = await CHANNELS[ch].send(next, { hotelSlug }, onToken);
+      // К запросу невидимо подмешиваются фильтры сайта
+      const reply = await CHANNELS[ch].send(next, { hotelSlug, filters, query }, onToken);
       update(ch, (arr) => {
         const last = arr[arr.length - 1];
         return last?.streaming
@@ -135,7 +141,7 @@ export default function HeroChat({ hotelSlug, onSelectHotel }) {
   function resetChat() {
     setHistory((h) => ({
       ...h,
-      [channel]: [{ role: 'bot', text: CHANNELS[channel].hello }],
+      [channel]: [],
     }));
   }
 
@@ -242,7 +248,18 @@ export default function HeroChat({ hotelSlug, onSelectHotel }) {
         </div>
       )}
 
-      {/* 3. Плавающий инпут в стиле ChatGPT: выбор ИИ слева, строка по центру, поддержка справа */}
+      {/* 3. Пометка о том, что фильтры каталога учитываются ИИ */}
+      <div className="chatgpt-filter-note">
+        <span className="chatgpt-filter-note__icon">⚡</span>
+        <span>Фильтры ниже также учитываются при ответе вам.</span>
+        {activeFilters.length > 0 && (
+          <span className="chatgpt-filter-note__tags" title="Активные фильтры">
+            {activeFilters.join(' • ')}
+          </span>
+        )}
+      </div>
+
+      {/* 4. Плавающий инпут в стиле ChatGPT: выбор ИИ слева, строка по центру, поддержка справа */}
       <div className="chatgpt-input-dock">
         {/* Кнопка ИИ-помощник слева */}
         <button
