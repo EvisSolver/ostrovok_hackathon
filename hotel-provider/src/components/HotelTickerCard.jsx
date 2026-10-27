@@ -149,7 +149,7 @@ export function HotelSceneGraphic({ scene = 'city', accent = '#1fa0f0' }) {
 }
 
 export default function HotelTickerCard({ hotel, onSelect }) {
-  const { name, city, stars, rating, priceFrom, tagline, badge, scene, accent } = hotel;
+  const { name, city, stars, rating, priceFrom, tagline, scene, accent } = hotel;
 
   return (
     <article
@@ -162,7 +162,6 @@ export default function HotelTickerCard({ hotel, onSelect }) {
       <div className="ticker-card__media">
         <HotelSceneGraphic scene={scene} accent={accent} />
         <span className="ticker-card__badge-city">{city}</span>
-        {badge && <span className="ticker-card__badge-tag" style={{ backgroundColor: accent }}>{badge}</span>}
         <span className="ticker-card__rating">★ {rating}</span>
       </div>
 
