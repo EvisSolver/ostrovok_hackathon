@@ -40,19 +40,10 @@ def get_coords(el: dict):
     return None, None
 
 def detect_zone_type(tags: dict) -> str:
-    for key in ("leisure", "natural", "waterway"):
-        if key in tags:
-            return tags[key]
-    return "unknown"
- 
-def detect_shop_type(tags: dict) -> str: # ДОДЕЛАТЬДОДЕЛАТЬДОДЕЛАТЬДОДЕЛАТЬДОДЕЛАТЬДОДЕЛАТЬ
-    for key in ("leisure", "natural", "waterway"):
-        if key in tags:
-            return tags[key]
-    return "unknown"
-
-def detect_whereeat_type(tags: dict) -> str: # ДОДЕЛАТЬДОДЕЛАТЬДОДЕЛАТЬДОДЕЛАТЬДОДЕЛАТЬДОДЕЛАТЬ
-    for key in ("leisure", "natural", "waterway"):
+    if not tags:
+        return "unknown"
+    for key in ("shop", "amenity", "tourism", "leisure",
+                "water", "natural", "waterway", "building"):
         if key in tags:
             return tags[key]
     return "unknown"
@@ -131,7 +122,7 @@ async def main():
         shop_malls_rows.append({
             "id": el["id"],
             "name": tags.get("name", "Unknown"),
-            "type": detect_shop_type(tags),
+            "type": detect_zone_type(tags),
             "location": make_point(lat, lon),
         })
 
@@ -163,7 +154,7 @@ async def main():
         where_to_eat_rows.append({
             "id": el["id"],
             "name": tags.get("name", "Unknown"),
-            "type": detect_whereeat_type(tags),
+            "type": detect_zone_type(tags),
             "location": make_point(lat, lon),
         })
 
