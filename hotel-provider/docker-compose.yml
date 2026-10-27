@@ -23,12 +23,16 @@ services:
     build: ./server
     environment:
       DATABASE_URL: postgresql://hotels:${POSTGRES_PASSWORD:-hotels}@db:5432/hotels
+      # Каталог сайта находится в реальной БД основного Compose-стека.
+      HOTELS_DATABASE_URL: ${HOTELS_DATABASE_URL:-postgresql://otters:hackathon@host.docker.internal:5432/otters_db}
       HOTELS_FILE: /data/hotels.json
       LLM_SERVICE_URL: http://llm:8001
       MODEL_URL: ${MODEL_URL:-}
       MODEL_NAME: ${MODEL_NAME:-default}
       MODEL_API_KEY: ${MODEL_API_KEY:-}
     volumes: ["./public/data:/data:ro"]
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       db: { condition: service_healthy }
       llm: { condition: service_healthy }

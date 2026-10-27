@@ -15,7 +15,8 @@
     MAX_CONCURRENT   одновременных генераций на воркер (по умолчанию 8)
     QUEUE_WAIT       сколько секунд ждать свободный слот (по умолчанию 10)
     RATE_LIMIT       сообщений на пользователя за 60 с (по умолчанию 20)
-    HOTELS_FILE      путь к hotels.json
+    HOTELS_FILE      путь к hotels.json (используется текущим AI-контуром)
+    HOTELS_DATABASE_URL  PostgreSQL с каталогом отелей (опционально)
 """
 import asyncio
 import json
@@ -37,6 +38,7 @@ log = logging.getLogger("chat")
 logging.basicConfig(level=logging.INFO)
 
 DATABASE_URL = os.getenv("DATABASE_URL")
+HOTELS_DATABASE_URL = os.getenv("HOTELS_DATABASE_URL")
 LLM_SERVICE_URL = os.getenv("LLM_SERVICE_URL")
 MODEL_URL = os.getenv("MODEL_URL")
 MODEL_NAME = os.getenv("MODEL_NAME", "default")
@@ -132,6 +134,7 @@ class RateLimiter:
 
 class State:
     store = None
+    hotels_pool = None
     limiter = RateLimiter()
     http: httpx.AsyncClient = None
     slots: asyncio.Semaphore = None
@@ -148,10 +151,15 @@ async def lifespan(_: FastAPI):
         S.store = MemoryStore()
         log.warning("DATABASE_URL не задан: переписки хранятся в памяти процесса. Только для разработки, один воркер!")
     await S.store.init()
+    if not HOTELS_DATABASE_URL:
+        raise RuntimeError("HOTELS_DATABASE_URL не задан: каталог отелей недоступен")
+    import asyncpg
+    S.hotels_pool = await asyncpg.create_pool(HOTELS_DATABASE_URL, min_size=1, max_size=5)
     S.http = httpx.AsyncClient(timeout=httpx.Timeout(60, connect=5))
     S.slots = asyncio.Semaphore(MAX_CONCURRENT)
     yield
     await S.http.aclose()
+    await S.hotels_pool.close()
     await S.store.close()
 
 
@@ -336,6 +344,68 @@ async def history(channel: Literal["ai", "support"], x_user_id: str = Header(min
     return {"messages": await S.store.history(x_user_id, channel, UI_HISTORY)}
 
 
+@app.get("/api/hotels")
+async def get_hotels():
+    """Read the public catalog from the PostGIS hotels table."""
+    try:
+        rows = await S.hotels_pool.fetch("""
+            SELECT id, name, stars, price,
+                   ST_Y(location::geometry) AS latitude,
+                   ST_X(location::geometry) AS longitude
+            FROM hotels
+            ORDER BY id
+        """)
+    except Exception as exc:
+        log.exception("Failed to load hotel catalog from PostgreSQL")
+        raise HTTPException(503, "Каталог отелей временно недоступен") from exc
+    return [_hotel_for_site(row) for row in rows]
+
+
+@app.get("/api/hotels/{slug}")
+async def get_hotel(slug: str):
+    try:
+        hotel_id = int(slug.removeprefix("hotel-"))
+    except ValueError:
+        raise HTTPException(404, "Отель не найден")
+    try:
+        row = await S.hotels_pool.fetchrow("""
+            SELECT id, name, stars, price,
+                   ST_Y(location::geometry) AS latitude,
+                   ST_X(location::geometry) AS longitude
+            FROM hotels
+            WHERE id = $1
+        """, hotel_id)
+    except Exception as exc:
+        log.exception("Failed to load hotel %s from PostgreSQL", hotel_id)
+        raise HTTPException(503, "Каталог отелей временно недоступен") from exc
+    if row is None:
+        raise HTTPException(404, "Отель не найден")
+    return _hotel_for_site(row)
+
+
+def _hotel_for_site(row) -> dict:
+    hotel_id = row["id"]
+    latitude = row["latitude"]
+    longitude = row["longitude"]
+    location = None
+    if latitude is not None and longitude is not None:
+        location = {"lat": latitude, "lng": longitude, "address": ""}
+    return {
+        "id": hotel_id,
+        "slug": f"hotel-{hotel_id}",
+        "name": row["name"] or f"Отель {hotel_id}",
+        "city": "",
+        "region": "",
+        "country": "Россия",
+        "stars": row["stars"] or 0,
+        "priceFrom": row["price"],
+        "currency": "RUB",
+        "location": location,
+        "lat": latitude,
+        "lon": longitude,
+    }
+
+
 @app.get("/healthz")
 async def healthz():
     return {"ok": True}
@@ -345,6 +415,7 @@ async def healthz():
 async def readyz():
     try:
         await S.store.ping()
+        await S.hotels_pool.fetchval("SELECT 1")
         return {"ok": True}
     except Exception:
         return JSONResponse({"ok": False}, status_code=503)

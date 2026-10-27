@@ -3,7 +3,6 @@ import HotelCard from '../components/HotelCard.jsx';
 import Filters, { EMPTY_FILTERS } from '../components/Filters.jsx';
 import HotelTicker from '../components/HotelTicker.jsx';
 import HeroChat from '../components/HeroChat.jsx';
-import { DUMMY_HOTELS_LEFT, DUMMY_HOTELS_RIGHT } from '../data/dummyHotels.js';
 import { getHotels } from '../services/hotelsService.js';
 import { ACCESS, plural } from '../utils.js';
 
@@ -75,6 +74,9 @@ export default function HomePage() {
   }, [hotels, query, filters, sort]);
 
   const highlight = ['metro', 'sea', 'center'].includes(sort) ? sort : null;
+  const tickerHotels = useMemo(() => hotels.filter((hotel) => hotel.slug), [hotels]);
+  const tickerLeft = useMemo(() => tickerHotels.filter((_, index) => index % 2 === 0), [tickerHotels]);
+  const tickerRight = useMemo(() => tickerHotels.filter((_, index) => index % 2 === 1), [tickerHotels]);
 
   function scrollToCatalog(e) {
     if (e) e.preventDefault();
@@ -95,10 +97,10 @@ export default function HomePage() {
     <div className="home-page-wrap">
       {/* 1. Первый экран: Столбики отелей слева и справа (идут рывком), по центру сквозной чат */}
       <section className="landing-hero" aria-label="Главный экран">
-        {/* Левая колонка отелей (прыгает вверх) */}
+        {/* Левая колонка отелей из каталога БД */}
         <aside className="landing-hero__col landing-hero__col--left" aria-hidden="true">
           <HotelTicker
-            hotels={DUMMY_HOTELS_LEFT}
+            hotels={tickerLeft}
             direction="up"
             stepInterval={3600}
             delay={0}
@@ -132,10 +134,10 @@ export default function HomePage() {
           </a>
         </div>
 
-        {/* Правая колонка отелей (прыгает вниз) */}
+        {/* Правая колонка отелей из каталога БД */}
         <aside className="landing-hero__col landing-hero__col--right" aria-hidden="true">
           <HotelTicker
-            hotels={DUMMY_HOTELS_RIGHT}
+            hotels={tickerRight}
             direction="down"
             stepInterval={3600}
             delay={1800}

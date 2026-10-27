@@ -1,20 +1,20 @@
 import { normalizeHotel } from '../data/hotelSchema.js';
 
-/**
- * ЕДИНАЯ ТОЧКА ДОСТУПА К ДАННЫМ.
- * Сейчас читается public/data/hotels.json. Замените URL или тело getHotels() на свой источник.
- */
+/** Единственная точка доступа сайта к каталогу отелей из PostgreSQL. */
 let cache = null;
 
 export async function getHotels() {
   if (!cache) {
-    const res = await fetch(`${import.meta.env.BASE_URL}data/hotels.json`);
-    if (!res.ok) throw new Error('Не удалось загрузить данные об отелях');
+    const res = await fetch('/api/hotels');
+    if (!res.ok) throw new Error('Не удалось загрузить каталог отелей');
     cache = (await res.json()).map(normalizeHotel);
   }
   return cache;
 }
 
 export async function getHotelBySlug(slug) {
-  return (await getHotels()).find((h) => h.slug === slug) ?? null;
+  const res = await fetch(`/api/hotels/${encodeURIComponent(slug)}`);
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error('Не удалось загрузить отель');
+  return normalizeHotel(await res.json());
 }

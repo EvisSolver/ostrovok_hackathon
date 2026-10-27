@@ -162,23 +162,23 @@ export default function HotelTickerCard({ hotel, onSelect }) {
       <div className="ticker-card__media">
         <HotelSceneGraphic scene={scene} accent={accent} />
         <span className="ticker-card__badge-city">{city}</span>
-        <span className="ticker-card__rating">★ {rating}</span>
+        {rating != null && <span className="ticker-card__rating">★ {rating}</span>}
       </div>
 
       <div className="ticker-card__body">
         <div>
           <div className="ticker-card__top">
             <Stars count={stars} />
-            <span className="ticker-card__stars-text">{stars} звёзд</span>
+            {stars > 0 && <span className="ticker-card__stars-text">{stars} звёзд</span>}
           </div>
           <h4 className="ticker-card__name">{name}</h4>
           <p className="ticker-card__tagline">{tagline}</p>
         </div>
 
         <div className="ticker-card__foot">
-          <div className="ticker-card__price">
+          {priceFrom != null && <div className="ticker-card__price">
             <span>от</span> <strong>{formatPrice(priceFrom, 'RUB')}</strong> <span>/ ночь</span>
-          </div>
+          </div>}
           <span className="ticker-card__action">Смотреть →</span>
         </div>
       </div>
