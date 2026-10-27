@@ -20,7 +20,7 @@ def db_query(sql_filename: str):
             
             # Управляем подключением к базе данных в одном месте
             async with await psycopg.AsyncConnection.connect(
-                "postgresql:///hotels",
+                "postgresql://otters:hackathon@127.0.0.1:5432/otters_db",
                 row_factory=dict_row
             ) as connection:
                 async with connection.cursor() as cur:
@@ -42,4 +42,4 @@ class LLM_Call_Functions:
     @staticmethod
     @db_query("get_meters_to_hotel.sql")
     async def get_meters_to_hotel(dict_answer: dict) -> dict:
-        return {"meters_number": dict_answer["meters"]}
+        return {"id": dict_answer["id"]}
