@@ -101,8 +101,6 @@ body { letter-spacing: -.005em; }
   gap: 0;
   width: 100%;
   max-width: 640px;
-  border-top: 1px solid var(--panel-line, #{$line});
-  border-left: 1px solid var(--panel-line, #{$line});
 
   @include down($bp-sm) { grid-template-columns: 1fr; }
 }
