@@ -51,3 +51,10 @@ class Where_to_eat(Base):
     type: Mapped[str] = mapped_column(String)
     # Здесь хранится точка на карте в формате PostGIS
     location: Mapped[str] = mapped_column(Geography(geometry_type='POINT', srid=4326))
+
+class Metro(Base):
+    __tablename__ = 'metro'
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    name: Mapped[str] = mapped_column(String, nullable=True)
+    # Здесь хранится точка на карте в формате PostGIS
+    location: Mapped[str] = mapped_column(Geography(geometry_type='POINT', srid=4326))
