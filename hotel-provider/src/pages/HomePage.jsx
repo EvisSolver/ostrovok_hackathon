@@ -21,6 +21,7 @@ export default function HomePage() {
   const [totalPages, setTotalPages] = useState(0);
   const [status, setStatus] = useState('loading'); // loading | refreshing | ok | error
   const [query, setQuery] = useState('');
+  const [searchText, setSearchText] = useState('');
   const [filters, setFilters] = useState(EMPTY_FILTERS);
   const [sort, setSort] = useState('stars');
   const [scrollProgress, setScrollProgress] = useState(0);
@@ -28,8 +29,26 @@ export default function HomePage() {
   const requestId = useRef(0);
   const abortRef = useRef(null);
 
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setQuery(searchText);
+      setPage(1);
+    }, 280);
+    return () => window.clearTimeout(timer);
+  }, [searchText]);
+
   const starsKey = filters.stars.join(',');
   const maxPrice = filters.maxPrice;
+  const proximity = {
+    park: filters.parkDistanceM,
+    water: filters.waterDistanceM,
+    river: filters.riverDistanceM,
+    road: filters.roadDistanceM,
+    attraction: filters.attractionDistanceM,
+    mall: filters.mallDistanceM,
+    food: filters.foodDistanceM,
+  };
+  const proximityKey = Object.values(proximity).join(',');
 
   useEffect(() => {
     const id = ++requestId.current;
@@ -38,7 +57,7 @@ export default function HomePage() {
     abortRef.current = controller;
     setStatus((current) => (current === 'loading' ? current : 'refreshing'));
 
-    getHotels({ query, stars: filters.stars, maxPrice, sort, page, signal: controller.signal })
+    getHotels({ query, stars: filters.stars, maxPrice, sort, page, proximity, signal: controller.signal })
       .then((result) => {
         if (id !== requestId.current) return;
         setHotels((current) => (page === 1 ? result.items : [...current, ...result.items]));
@@ -52,7 +71,7 @@ export default function HomePage() {
       });
 
     return () => controller.abort();
-  }, [query, starsKey, maxPrice, sort, page]);
+  }, [query, starsKey, maxPrice, proximityKey, sort, page]);
 
   useEffect(() => () => abortRef.current?.abort(), []);
 
@@ -81,6 +100,7 @@ export default function HomePage() {
   }
 
   function resetCatalog() {
+    setSearchText('');
     setQuery('');
     setFilters(EMPTY_FILTERS);
     setSort('stars');
@@ -88,7 +108,7 @@ export default function HomePage() {
   }
 
   function handleSelectTickerHotel(tickerHotel) {
-    if (tickerHotel.name) setQuery(tickerHotel.name);
+    if (tickerHotel.name) setSearchText(tickerHotel.name);
     setPage(1);
     scrollToCatalog();
   }
@@ -140,12 +160,12 @@ export default function HomePage() {
                   <circle cx="11" cy="11" r="8"></circle><line x1="21" y1="2" x2="16.65" y2="16.65"></line>
                 </svg>
                 <input
-                  value={query}
-                  onChange={(e) => { setQuery(e.target.value); setPage(1); }}
+                  value={searchText}
+                  onChange={(e) => setSearchText(e.target.value)}
                   placeholder="Поиск по названию отеля…"
                   aria-label="Поиск по названию отеля"
                 />
-                {query && <button type="button" className="catalog-search__clear" onClick={() => { setQuery(''); setPage(1); }} title="Очистить поиск">×</button>}
+                {searchText && <button type="button" className="catalog-search__clear" onClick={() => setSearchText('')} title="Очистить поиск">×</button>}
               </div>
               <button type="submit" className="btn btn--orange catalog-search__btn">Найти</button>
             </form>
@@ -175,9 +195,11 @@ export default function HomePage() {
               )}
               <div className="list">{hotels.map((hotel) => <HotelCard key={hotel.slug} hotel={hotel} highlight={highlight} />)}</div>
               {status !== 'loading' && page < totalPages && (
-                <button type="button" className="btn btn--orange" onClick={() => setPage((current) => current + 1)} disabled={status === 'refreshing'}>
-                  {status === 'refreshing' ? 'Загрузка…' : 'Показать ещё 25'}
-                </button>
+                <div className="results__load-more">
+                  <button type="button" className="btn btn--orange" onClick={() => setPage((current) => current + 1)} disabled={status === 'refreshing'}>
+                    {status === 'refreshing' ? 'Загрузка…' : 'Показать ещё 25'}
+                  </button>
+                </div>
               )}
             </div>
           </div>

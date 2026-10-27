@@ -13,12 +13,22 @@
   button { padding: .3rem .7rem; border: 1px solid $line; border-radius: 999px; background: $surface; cursor: pointer; font-weight: 700;
     &.is-on { background: $blue; border-color: $blue; color: #fff; } } }
 
+.filters__hint { color: $muted; font-size: .78rem; line-height: 1.4; margin: 0 0 .7rem; }
+.near-pick { display: grid; gap: .75rem;
+  &__row { display: grid; gap: .35rem; }
+  &__label { font-size: .82rem; font-weight: 700; }
+  &__chips { display: flex; flex-wrap: wrap; gap: .3rem;
+    button { padding: .25rem .45rem; border: 1px solid $line; border-radius: 999px; background: $surface; color: $ink; cursor: pointer; font-size: .75rem;
+      &.is-on { background: $blue; border-color: $blue; color: #fff; } } } }
+
 .results__bar { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: .5rem; margin-bottom: 1rem;
   p { margin: 0; font-weight: 700; }
   label { display: flex; align-items: center; gap: .5rem; color: $muted; font-size: .9rem; }
   select { padding: .45rem .7rem; border: 1px solid $line; border-radius: 10px; background: $surface; color: $ink; } }
 
 .list { display: grid; gap: .9rem; grid-template-columns: 1fr; @media (min-width: 1100px) { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+.results__load-more { display: flex; justify-content: center; margin-top: 2rem; }
 
 // Карточка: слева фото, справа текст, снизу строка с ценой. В ряду по 2 отеля (от 1100px)
 .hotel-card { display: grid; grid-template-columns: 150px 1fr; min-height: 190px; background: $surface; border-radius: $radius-lg;

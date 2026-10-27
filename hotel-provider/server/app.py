@@ -359,8 +359,14 @@ HOTEL_SORTS = {
 }
 
 
-def _catalog_cache_key(q, stars, max_price, sort, page, page_size):
-    return json.dumps([q, stars, max_price, sort, page, page_size], ensure_ascii=False)
+def _catalog_cache_key(q, stars, max_price, sort, page, page_size, proximity):
+    return json.dumps(
+        [q, stars, max_price, sort, page, page_size, proximity],
+        ensure_ascii=False,
+    )
+
+
+HOTEL_NAME_PREDICATE = "name IS NOT NULL AND btrim(name) <> '' AND lower(btrim(name)) <> 'unknown'"
 
 
 def _catalog_cache_get(key):
@@ -390,6 +396,13 @@ async def get_hotels(
     sort: str = Query("stars", max_length=20),
     page: int = Query(1, ge=1),
     page_size: int = Query(HOTELS_PAGE_SIZE, ge=1, le=HOTELS_PAGE_SIZE),
+    park_distance_m: Optional[int] = Query(None, ge=1, le=50000),
+    water_distance_m: Optional[int] = Query(None, ge=1, le=50000),
+    river_distance_m: Optional[int] = Query(None, ge=1, le=50000),
+    road_distance_m: Optional[int] = Query(None, ge=1, le=50000),
+    attraction_distance_m: Optional[int] = Query(None, ge=1, le=50000),
+    mall_distance_m: Optional[int] = Query(None, ge=1, le=50000),
+    food_distance_m: Optional[int] = Query(None, ge=1, le=50000),
 ):
     """Return one bounded, database-filtered catalog page."""
     if sort not in HOTEL_SORTS:
@@ -402,12 +415,23 @@ async def get_hotels(
         raise HTTPException(400, "Некорректный фильтр звёзд")
 
     normalized_q = q.strip()
-    key = _catalog_cache_key(normalized_q, selected_stars, max_price, sort, page, page_size)
+    proximity = {
+        "park": park_distance_m,
+        "water": water_distance_m,
+        "river": river_distance_m,
+        "road": road_distance_m,
+        "attraction": attraction_distance_m,
+        "mall": mall_distance_m,
+        "food": food_distance_m,
+    }
+    key = _catalog_cache_key(
+        normalized_q, selected_stars, max_price, sort, page, page_size, proximity
+    )
     cached = _catalog_cache_get(key)
     if cached is not None:
         return cached
 
-    predicates = []
+    predicates = [HOTEL_NAME_PREDICATE]
     params = []
     if normalized_q:
         params.append(f"%{normalized_q}%")
@@ -418,7 +442,27 @@ async def get_hotels(
     if max_price is not None:
         params.append(max_price)
         predicates.append(f"price <= ${len(params)}")
-    where = f" WHERE {' AND '.join(predicates)}" if predicates else ""
+
+    def add_exists(table, distance, condition=""):
+        if distance is None:
+            return
+        params.append(distance)
+        distance_param = len(params)
+        predicates.append(
+            f"EXISTS (SELECT 1 FROM {table} nearby "
+            f"WHERE ST_DWithin(hotels.location, nearby.location, ${distance_param})"
+            f"{condition})"
+        )
+
+    add_exists("green_zones", park_distance_m, " AND nearby.type = 'park'")
+    add_exists("green_zones", water_distance_m, " AND nearby.type = 'water'")
+    add_exists("green_zones", river_distance_m, " AND nearby.type = 'river'")
+    add_exists("roads", road_distance_m)
+    add_exists("attraction", attraction_distance_m)
+    add_exists("shop_malls", mall_distance_m)
+    add_exists("where_to_eat", food_distance_m)
+
+    where = f" WHERE {' AND '.join(predicates)}"
     offset = (page - 1) * page_size
     count_sql = f"SELECT count(*) FROM hotels{where}"
     rows_sql = f"""
@@ -456,12 +500,13 @@ async def get_hotel(slug: str):
     except ValueError:
         raise HTTPException(404, "Отель не найден")
     try:
-        row = await S.hotels_pool.fetchrow("""
+        row = await S.hotels_pool.fetchrow(f"""
             SELECT id, name, stars, price,
                    ST_Y(location::geometry) AS latitude,
                    ST_X(location::geometry) AS longitude
             FROM hotels
             WHERE id = $1
+              AND {HOTEL_NAME_PREDICATE}
         """, hotel_id)
     except Exception as exc:
         log.exception("Failed to load hotel %s from PostgreSQL", hotel_id)
