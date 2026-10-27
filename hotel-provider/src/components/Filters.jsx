@@ -1,5 +1,3 @@
-import { ACCESS } from '../utils.js';
-
 export const EMPTY_FILTERS = { city: '', stars: [], maxPrice: null, metro: null, sea: null, center: null };
 const MINUTES = [5, 10, 15, 30];
 
@@ -16,14 +14,6 @@ export default function Filters({ value, onChange, cities, priceMax }) {
       </div>
 
       <fieldset>
-        <legend>Город</legend>
-        <select value={value.city} onChange={(e) => set({ city: e.target.value })}>
-          <option value="">Все города</option>
-          {cities.map((c) => <option key={c} value={c}>{c}</option>)}
-        </select>
-      </fieldset>
-
-      <fieldset>
         <legend>Цена за ночь до {price.toLocaleString('ru-RU')} ₽</legend>
         <input type="range" min={1000} max={priceMax} step={500} value={price}
                onChange={(e) => set({ maxPrice: Number(e.target.value) >= priceMax ? null : Number(e.target.value) })} />
@@ -38,15 +28,6 @@ export default function Filters({ value, onChange, cities, priceMax }) {
         </div>
       </fieldset>
 
-      {Object.entries(ACCESS).map(([key, a]) => (
-        <fieldset key={key}>
-          <legend>Пешком {a.short}</legend>
-          <select value={value[key] ?? ''} onChange={(e) => set({ [key]: e.target.value ? Number(e.target.value) : null })}>
-            <option value="">Любое время</option>
-            {MINUTES.map((m) => <option key={m} value={m}>до {m} минут</option>)}
-          </select>
-        </fieldset>
-      ))}
     </aside>
   );
 }

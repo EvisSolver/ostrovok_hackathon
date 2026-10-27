@@ -1,15 +1,22 @@
 import { normalizeHotel } from '../data/hotelSchema.js';
 
-/** Единственная точка доступа сайта к каталогу отелей из PostgreSQL. */
-let cache = null;
+const PAGE_SIZE = 25;
 
-export async function getHotels() {
-  if (!cache) {
-    const res = await fetch('/api/hotels');
-    if (!res.ok) throw new Error('Не удалось загрузить каталог отелей');
-    cache = (await res.json()).map(normalizeHotel);
-  }
-  return cache;
+/** Fetch one bounded page from the PostgreSQL-backed catalog. */
+export async function getHotels({ query = '', stars = [], maxPrice = null, sort = 'stars', page = 1, signal } = {}) {
+  const params = new URLSearchParams({
+    page: String(page),
+    page_size: String(PAGE_SIZE),
+    sort,
+  });
+  if (query.trim()) params.set('q', query.trim());
+  if (stars.length) params.set('stars', stars.join(','));
+  if (maxPrice != null) params.set('max_price', String(maxPrice));
+
+  const res = await fetch(`/api/hotels?${params}`, { signal });
+  if (!res.ok) throw new Error('Не удалось загрузить каталог отелей');
+  const result = await res.json();
+  return { ...result, items: result.items.map(normalizeHotel) };
 }
 
 export async function getHotelBySlug(slug) {

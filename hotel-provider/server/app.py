@@ -25,7 +25,10 @@ import os
 import time
 from contextlib import asynccontextmanager
 from pathlib import Path
+from collections import OrderedDict
 from typing import Literal, Optional
+
+from fastapi import Query
 
 import httpx
 from fastapi import FastAPI, Header, HTTPException, Request
@@ -46,6 +49,9 @@ MODEL_API_KEY = os.getenv("MODEL_API_KEY", "")
 MAX_CONCURRENT = int(os.getenv("MAX_CONCURRENT", "8"))
 QUEUE_WAIT = float(os.getenv("QUEUE_WAIT", "10"))
 RATE_LIMIT = int(os.getenv("RATE_LIMIT", "20"))
+HOTELS_PAGE_SIZE = 25
+HOTELS_CACHE_SIZE = 128
+HOTELS_CACHE_TTL = 60
 MODEL_HISTORY = 20      # сколько последних сообщений видит модель
 UI_HISTORY = 50         # сколько сообщений отдаём в окно чата при открытии
 HOTELS_FILE = Path(os.getenv("HOTELS_FILE", Path(__file__).resolve().parent.parent / "public" / "data" / "hotels.json"))
@@ -188,6 +194,7 @@ class ChatRequest(BaseModel):
 
 # ======================= данные об отелях =======================
 _hotels_cache = {"mtime": 0, "data": []}
+_catalog_cache: OrderedDict[str, tuple[float, dict]] = OrderedDict()
 
 
 def load_hotels() -> list[dict]:
@@ -344,21 +351,102 @@ async def history(channel: Literal["ai", "support"], x_user_id: str = Header(min
     return {"messages": await S.store.history(x_user_id, channel, UI_HISTORY)}
 
 
+HOTEL_SORTS = {
+    "stars": "stars DESC NULLS LAST, id ASC",
+    "price-asc": "price ASC NULLS LAST, id ASC",
+    "price-desc": "price DESC NULLS LAST, id ASC",
+    "id": "id ASC",
+}
+
+
+def _catalog_cache_key(q, stars, max_price, sort, page, page_size):
+    return json.dumps([q, stars, max_price, sort, page, page_size], ensure_ascii=False)
+
+
+def _catalog_cache_get(key):
+    cached = _catalog_cache.get(key)
+    if cached is None:
+        return None
+    created, value = cached
+    if time.monotonic() - created > HOTELS_CACHE_TTL:
+        _catalog_cache.pop(key, None)
+        return None
+    _catalog_cache.move_to_end(key)
+    return value
+
+
+def _catalog_cache_put(key, value):
+    _catalog_cache[key] = (time.monotonic(), value)
+    _catalog_cache.move_to_end(key)
+    while len(_catalog_cache) > HOTELS_CACHE_SIZE:
+        _catalog_cache.popitem(last=False)
+
+
 @app.get("/api/hotels")
-async def get_hotels():
-    """Read the public catalog from the PostGIS hotels table."""
+async def get_hotels(
+    q: str = Query("", max_length=120),
+    stars: Optional[str] = Query(None, max_length=20),
+    max_price: Optional[int] = Query(None, ge=0),
+    sort: str = Query("stars", max_length=20),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(HOTELS_PAGE_SIZE, ge=1, le=HOTELS_PAGE_SIZE),
+):
+    """Return one bounded, database-filtered catalog page."""
+    if sort not in HOTEL_SORTS:
+        raise HTTPException(400, "Неизвестная сортировка")
     try:
-        rows = await S.hotels_pool.fetch("""
-            SELECT id, name, stars, price,
-                   ST_Y(location::geometry) AS latitude,
-                   ST_X(location::geometry) AS longitude
-            FROM hotels
-            ORDER BY id
-        """)
+        selected_stars = sorted({int(value) for value in (stars or "").split(",") if value})
+    except ValueError as exc:
+        raise HTTPException(400, "Некорректный фильтр звёзд") from exc
+    if any(value < 1 or value > 5 for value in selected_stars):
+        raise HTTPException(400, "Некорректный фильтр звёзд")
+
+    normalized_q = q.strip()
+    key = _catalog_cache_key(normalized_q, selected_stars, max_price, sort, page, page_size)
+    cached = _catalog_cache_get(key)
+    if cached is not None:
+        return cached
+
+    predicates = []
+    params = []
+    if normalized_q:
+        params.append(f"%{normalized_q}%")
+        predicates.append(f"name ILIKE ${len(params)}")
+    if selected_stars:
+        params.append(selected_stars)
+        predicates.append(f"stars = ANY(${len(params)}::int[])")
+    if max_price is not None:
+        params.append(max_price)
+        predicates.append(f"price <= ${len(params)}")
+    where = f" WHERE {' AND '.join(predicates)}" if predicates else ""
+    offset = (page - 1) * page_size
+    count_sql = f"SELECT count(*) FROM hotels{where}"
+    rows_sql = f"""
+        SELECT id, name, stars, price,
+               ST_Y(location::geometry) AS latitude,
+               ST_X(location::geometry) AS longitude
+        FROM hotels{where}
+        ORDER BY {HOTEL_SORTS[sort]}
+        LIMIT ${len(params) + 1} OFFSET ${len(params) + 2}
+    """
+    try:
+        async with S.hotels_pool.acquire() as connection:
+            async with connection.transaction():
+                total = await connection.fetchval(count_sql, *params)
+                rows = await connection.fetch(rows_sql, *params, page_size, offset)
     except Exception as exc:
         log.exception("Failed to load hotel catalog from PostgreSQL")
         raise HTTPException(503, "Каталог отелей временно недоступен") from exc
-    return [_hotel_for_site(row) for row in rows]
+
+    result = {
+        "items": [_hotel_for_site(row) for row in rows],
+        "total": total,
+        "page": page,
+        "pageSize": page_size,
+        "totalPages": (total + page_size - 1) // page_size,
+    }
+    _catalog_cache_put(key, result)
+    return result
 
 
 @app.get("/api/hotels/{slug}")
