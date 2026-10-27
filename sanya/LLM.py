@@ -19,7 +19,7 @@ class LLM:
 
     async def pipeline(self, user_text: str) -> dict:
         async with httpx.AsyncClient(timeout = 67) as llm_client:
-            hotel = await LLM_Call_Functions.get_random_hotel_with_stars()
+            hotel = "Eleon"
             text_for_data_fetcher = await self.request_builder.llm_response_REQUEST_BUILDER(llm_client, user_text)
             text_data = f"|AGENT-DATA|: {text_for_data_fetcher}. |DATA|: {hotel}"
             text_for_answer_composer = await self.data_fetcher.llm_response_DATA_FETCHER(llm_client, text_data)
