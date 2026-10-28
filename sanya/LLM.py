@@ -4,8 +4,6 @@ from pystyle import Colors, Write
 
 from config import *
 
-from LLM_REQUEST_BUILDER import llm_1_response
-from LLM_DATA_FETCHER import llm_2_response
 from LLM_LOCAL_MODEL import LLM_LOCAL_DATA_FETCHER
 from LLM_LOCAL_REQUEST_BUILDER import LLM_LOCAL_REQUEST_BUILDER
 

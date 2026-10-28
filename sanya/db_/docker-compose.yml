@@ -1,0 +1,58 @@
+name: otters-project
+
+services:
+  # 1. База данных
+  db:
+    image: postgis/postgis:16-3.4
+    environment:
+      POSTGRES_USER: otters
+      POSTGRES_PASSWORD: hackathon
+      POSTGRES_DB: otters_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U otters -d otters_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # 2. Скрипт загрузки данных
+  etl:
+    build: .
+    command: sh -c "cd scripts && python etl.py"
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://otters:hackathon@db:5432/otters_db
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # 3. FastAPI
+  api:
+    build: .
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://otters:hackathon@db:5432/otters_db
+    depends_on:
+      db:
+        condition: service_healthy
+      etl:
+        condition: service_completed_successfully
+
+  # 4. Streamlit
+  streamlit:
+    build: .
+    command: streamlit run scripts/streamlit_app.py --server.port 8501 --server.address 0.0.0.0
+    ports:
+      - "8501:8501"
+    environment:
+      - API_URL=http://api:8000 
+    depends_on:
+      - api
+
+volumes:
+  postgres_data:
