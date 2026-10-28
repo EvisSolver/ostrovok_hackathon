@@ -9,3 +9,12 @@ __pycache__/
 
 # Логи
 *.log
+
+# Зависимости фронтенда (ставятся через npm install)
+node_modules/
+
+# Скачанные фото парсера
+DownloadPhotoHotelParser/photos/
+
+# Резервные копии данных
+data/hotels_backup.json
