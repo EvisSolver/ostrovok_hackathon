@@ -13,8 +13,9 @@
  * GET  /api/history?channel=ai|support (заголовок X-User-Id) — {"messages": [{"role", "text"}]}
  *
  * Тело POST-запросов: { userId, channel: "ai" | "support", message, context: { path, hotelSlug } }
- * userId — постоянный id посетителя из localStorage (переживает перезапуск браузера).
- * Когда на сайте появятся аккаунты, достаточно подставить сюда id пользователя.
+ * userId — id посетителя на одну загрузку страницы: живёт в памяти вкладки, при перезагрузке (F5 / Ctrl+F5)
+ * создаётся заново, поэтому переписка начинается с чистого листа. Переходы внутри сайта страницу не
+ * перезагружают, чат между ними сохраняется. Когда появятся аккаунты, сюда подставляется id пользователя.
  */
 const API =
   import.meta.env.VITE_API_URL ??
@@ -23,19 +24,13 @@ const API =
     : '/api');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-let memoryId = null; // запасной вариант, если localStorage недоступен
+let sessionId = null; // только в памяти: перезагрузка страницы = новая переписка
 function newId() {
   return crypto.randomUUID?.() ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 14)}`;
 }
 
 export function getUserId() {
-  try {
-    let id = localStorage.getItem('user-id');
-    if (!id) { id = newId(); localStorage.setItem('user-id', id); }
-    return id;
-  } catch {
-    return (memoryId ??= newId());
-  }
+  return (sessionId ??= newId());
 }
 
 export function formatFiltersContext(filters, query) {
