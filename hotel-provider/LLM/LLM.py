@@ -6,10 +6,6 @@ from config import *
 
 from LLM_LOCAL_MODEL import LLM_LOCAL_DATA_FETCHER
 from LLM_LOCAL_REQUEST_BUILDER import LLM_LOCAL_REQUEST_BUILDER
-# TODO(temp-api): УБРАТЬ после проверки — API-версии первых двух агентов вместо ollama.
-from LLM_REQUEST_BUILDER import llm_1_response
-from LLM_DATA_FETCHER import llm_2_response
-# TODO(temp-api): конец импортов.
 
 from LLM_ANSWER_COMPOSER import llm_3_response
 
@@ -18,12 +14,8 @@ from llm_calls import LLM_Call_Functions
 
 class LLM:
     def __init__(self, request_builder: dict, data_fetcher: dict, answer_composer: dict):
-        # TODO(temp-api): УБРАТЬ после проверки — вернуть две строки с LLM_LOCAL_*.
-        # self.request_builder = LLM_LOCAL_REQUEST_BUILDER(request_builder)
-        # self.data_fetcher = LLM_LOCAL_DATA_FETCHER(data_fetcher)
-        self.request_builder = llm_1_response.LLM_REQUEST_BUILDER(request_builder)
-        self.data_fetcher = llm_2_response.LLM_DATA_FETCHER(data_fetcher)
-        # TODO(temp-api): конец замены.
+        self.request_builder = LLM_LOCAL_REQUEST_BUILDER(request_builder)
+        self.data_fetcher = LLM_LOCAL_DATA_FETCHER(data_fetcher)
         self.answer_composer = llm_3_response.LLM_ANSWER_COMPOSER(answer_composer)
 
         self.llm_call = LLM_Call_Functions
@@ -31,17 +23,10 @@ class LLM:
     async def pipeline(self, user_text: str) -> dict:
         async with httpx.AsyncClient(timeout = 67) as llm_client:
             hotel = "Eleon"
-            # TODO(temp-api): УБРАТЬ после проверки — вернуть вызов llm_local_model_response_REQUEST_BUILDER(user_text).
-            text_for_data_fetcher = await self.request_builder.llm_response_REQUEST_BUILDER(llm_client, user_text)
+            text_for_data_fetcher = await self.request_builder.llm_local_model_response_REQUEST_BUILDER(user_text)
             if text_for_data_fetcher == '{"command": "stop"}': return await self.pipeline(user_text)
             print(text_for_data_fetcher)
-            # TODO(temp-api): УБРАТЬ после проверки — вернуть вызов llm_local_model_response_DATA_FETCHER(text_for_data_fetcher).
-            text_for_answer_composer = await self.data_fetcher.llm_response_DATA_FETCHER(llm_client, text_for_data_fetcher)
-            # TODO(temp-api): API-модель, в отличие от ollama с format=json, может обернуть JSON в ```-блок.
-            text_for_answer_composer = text_for_answer_composer.strip()
-            if text_for_answer_composer.startswith("```"):
-                text_for_answer_composer = text_for_answer_composer.strip("`").removeprefix("json").strip()
-            # TODO(temp-api): конец обработки.
+            text_for_answer_composer = await self.data_fetcher.llm_local_model_response_DATA_FETCHER(text_for_data_fetcher)
 
             dict_answer = json.loads(text_for_answer_composer)
             hotel_info_from_db = await LLM_Call_Functions.get_random_hotel_with_stars(dict_answer)
