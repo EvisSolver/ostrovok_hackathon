@@ -1,51 +1,119 @@
-# Стенд: nginx (балансировщик + статика сайта) -> 3 контейнера API (по 2 воркера) -> PostgreSQL + микросервис LLM.
-#   npm run build            # собрать сайт в dist/
-#   docker compose up --build
+# Полный стенд одной командой:
+#   cd hotel-provider
+#   npm run build                       # статика сайта в dist/
+#   cp LLM/.env.example LLM/.env        # и вписать OPEN_ROUTER_KEY
+#   docker compose up -d --build
 # Откройте http://localhost:8080
+#
+# Состав: nginx (статика + балансировка) -> 3 реплики API -> PostgreSQL чатов,
+# PostGIS-каталог отелей (+ разовая загрузка данных: ETL из OSM, затем описания,
+# фото и витрина mv_hotels_analytics для LLM), микросервис LLM.
 services:
-  db:
+  # ---- каталог отелей (PostGIS) ----
+  hotels-db:
+    image: postgis/postgis:16-3.4
+    environment:
+      POSTGRES_USER: otters
+      POSTGRES_PASSWORD: hackathon
+      POSTGRES_DB: otters_db
+    volumes: ["hotels_pgdata:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U otters -d otters_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  # Разовая загрузка каталога из OSM (отработает и выключится).
+  etl:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    command: sh -c "cd scripts && python etl.py"
+    environment:
+      DATABASE_URL: postgresql+asyncpg://otters:hackathon@hotels-db:5432/otters_db
+    depends_on:
+      hotels-db: { condition: service_healthy }
+
+  # Разовое дообогащение: описания + фото + витрина mv_hotels_analytics,
+  # по которой LLM подбирает отели. Идемпотентно, можно перезапускать.
+  enrich:
+    image: postgis/postgis:16-3.4
+    entrypoint: ["sh", "-c"]
+    command:
+      - >
+        psql "$$DSN" -v ON_ERROR_STOP=0 -f /sql/hotels_enrichment.sql &&
+        psql "$$DSN" -c "DROP TABLE IF EXISTS mv_hotels_analytics" -f /sql/mv_hotels_analytics.sql &&
+        psql "$$DSN" -f /sql/hotels_photos.sql &&
+        psql "$$DSN" -c "UPDATE hotels h SET stars = mv.hotels_stars::int FROM mv_hotels_analytics mv WHERE mv.hotel_id = h.id AND h.stars IS NULL AND mv.hotels_stars IS NOT NULL"
+    environment:
+      DSN: postgresql://otters:hackathon@hotels-db:5432/otters_db
+    volumes: ["../data:/sql:ro"]
+    depends_on:
+      etl: { condition: service_completed_successfully }
+
+  # ---- нейросеть ----
+  llm:
+    build: ./LLM
+    restart: unless-stopped
+    ports: ["8001:8001"]
+    env_file: ./LLM/.env            # OPEN_ROUTER_KEY
+    environment:
+      HOTELS_DATABASE_URL: postgresql://otters:hackathon@hotels-db:5432/otters_db
+    depends_on:
+      enrich: { condition: service_completed_successfully }
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/health')"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+  # ---- история переписок ----
+  chat-db:
     image: postgres:16-alpine
     environment:
       POSTGRES_USER: hotels
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-hotels}
       POSTGRES_DB: hotels
-    volumes: ["pgdata:/var/lib/postgresql/data"]
-    healthcheck: { test: ["CMD-SHELL", "pg_isready -U hotels"], interval: 5s, timeout: 3s, retries: 10 }
+    volumes: ["chat_pgdata:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hotels"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
-  llm:
-    build: ./LLM
-    restart: unless-stopped
-    ports: ["8001:8001"]
-    env_file: ./LLM/.env
-    healthcheck: { test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/health')"], interval: 10s, timeout: 3s, retries: 3 }
-
+  # ---- API сайта (3 реплики) ----
   api:
     build: ./server
     environment:
-      DATABASE_URL: postgresql://hotels:${POSTGRES_PASSWORD:-hotels}@db:5432/hotels
-      # Каталог сайта находится в реальной БД основного Compose-стека.
-      HOTELS_DATABASE_URL: ${HOTELS_DATABASE_URL:-postgresql://otters:hackathon@host.docker.internal:5432/otters_db}
+      DATABASE_URL: postgresql://hotels:${POSTGRES_PASSWORD:-hotels}@chat-db:5432/hotels
+      HOTELS_DATABASE_URL: postgresql://otters:hackathon@hotels-db:5432/otters_db
       HOTELS_FILE: /data/hotels.json
       LLM_SERVICE_URL: http://llm:8001
-      MODEL_URL: ${MODEL_URL:-}
-      MODEL_NAME: ${MODEL_NAME:-default}
-      MODEL_API_KEY: ${MODEL_API_KEY:-}
     volumes: ["./public/data:/data:ro"]
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     depends_on:
-      db: { condition: service_healthy }
+      chat-db: { condition: service_healthy }
+      hotels-db: { condition: service_healthy }
+      enrich: { condition: service_completed_successfully }
       llm: { condition: service_healthy }
-    healthcheck: { test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://localhost:8000/readyz')"], interval: 10s, timeout: 3s, retries: 3 }
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://localhost:8000/readyz')"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
     restart: unless-stopped
     deploy: { replicas: 3 }
 
+  # ---- вход: статика сайта + балансировка API ----
   nginx:
     image: nginx:alpine
     ports: ["8080:80"]
-    volumes: ["./nginx.conf:/etc/nginx/conf.d/default.conf:ro", "./dist:/usr/share/nginx/html:ro"]
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./dist:/usr/share/nginx/html:ro
     depends_on: [api]
     restart: unless-stopped
 
 volumes:
-  pgdata:
+  hotels_pgdata:
+  chat_pgdata:
