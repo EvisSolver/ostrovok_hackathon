@@ -35,7 +35,8 @@ export default function HotelPage() {
 
   const h = hotel;
   const style = h.theme?.accent ? { '--accent': h.theme.accent } : undefined;
-  const [mainImg, ...restImgs] = h.gallery.length ? h.gallery : [h.cover].filter(Boolean);
+  const gallery = Array.isArray(h.gallery) ? h.gallery : [];
+  const [mainImg, ...restImgs] = gallery.length ? gallery : [h.cover].filter(Boolean);
 
   return (
     <article className="hotel-page" style={style}>
@@ -68,17 +69,17 @@ export default function HotelPage() {
 
         <div className="hotel-layout">
           <div className="hotel-layout__main">
-            <Section id="about" title="Об отеле" show={h.description.length > 0}>
-              {h.description.map((p, i) => <p key={i}>{p}</p>)}
+            <Section id="about" title="Об отеле" show={Array.isArray(h.description) && h.description.length > 0}>
+              {(Array.isArray(h.description) ? h.description : []).map((p, i) => <p key={i}>{p}</p>)}
             </Section>
 
-            <Section id="amenities" title="Удобства" show={h.amenities.length > 0}>
-              <ul className="chips">{h.amenities.map((a) => <li key={a}>{a}</li>)}</ul>
+            <Section id="amenities" title="Удобства" show={Array.isArray(h.amenities) && h.amenities.length > 0}>
+              <ul className="chips">{(Array.isArray(h.amenities) ? h.amenities : []).map((a) => <li key={a}>{a}</li>)}</ul>
             </Section>
 
-            <Section id="rooms" title="Номера" show={h.rooms.length > 0}>
+            <Section id="rooms" title="Номера" show={Array.isArray(h.rooms) && h.rooms.length > 0}>
               <div className="rooms">
-                {h.rooms.map((r) => (
+                {(Array.isArray(h.rooms) ? h.rooms : []).map((r) => (
                   <div className="room" key={r.name}>
                     <div className="room__img">{r.image ? <img src={r.image} alt={r.name} loading="lazy" /> : <div className="img-placeholder">Фото</div>}</div>
                     <div className="room__info">
@@ -91,8 +92,8 @@ export default function HotelPage() {
               </div>
             </Section>
 
-            <Section id="reviews" title="Отзывы" show={h.reviews.length > 0}>
-              {h.reviews.map((r, i) => (
+            <Section id="reviews" title="Отзывы" show={Array.isArray(h.reviews) && h.reviews.length > 0}>
+              {(Array.isArray(h.reviews) ? h.reviews : []).map((r, i) => (
                 <blockquote className="review" key={i}>
                   <div className="review__score">{r.rating}</div>
                   <div><p>{r.text}</p><footer className="muted">{r.author}{r.date && `, ${r.date}`}</footer></div>
@@ -100,8 +101,8 @@ export default function HotelPage() {
               ))}
             </Section>
 
-            <Section id="policies" title="Правила" show={h.policies.length > 0}>
-              <dl className="policies">{h.policies.map((p) => (<div key={p.title}><dt>{p.title}</dt><dd>{p.text}</dd></div>))}</dl>
+            <Section id="policies" title="Правила" show={Array.isArray(h.policies) && h.policies.length > 0}>
+              <dl className="policies">{(Array.isArray(h.policies) ? h.policies : []).map((p) => (<div key={p.title}><dt>{p.title}</dt><dd>{p.text}</dd></div>))}</dl>
             </Section>
           </div>
 
@@ -113,9 +114,9 @@ export default function HotelPage() {
                 ))}</dl>
               </div>
             )}
-            {h.highlights.length > 0 && (
+            {Array.isArray(h.highlights) && h.highlights.length > 0 && (
               <div className="panel"><h3>Коротко</h3>
-                <dl className="facts">{h.highlights.map((x) => (<div key={x.label}><dt>{x.label}</dt><dd>{x.value}</dd></div>))}</dl>
+                <dl className="facts">{(Array.isArray(h.highlights) ? h.highlights : []).map((x) => (<div key={x.label}><dt>{x.label}</dt><dd>{x.value}</dd></div>))}</dl>
               </div>
             )}
             {h.location && (
@@ -127,8 +128,8 @@ export default function HotelPage() {
                     <h4 className="nearby__heading">Что находится поблизости</h4>
                     <p className="nearby__note">Расстояния по прямой, рассчитанные по данным карты.</p>
                     <ul className="nearby">
-                      {h.location.nearby.map((n) => (
-                        <li key={`${n.category}-${n.name}`}>
+                      {h.location.nearby.map((n, i) => (
+                        <li key={`${i}-${n.category}-${n.name}`}>
                           <span className="nearby__name">
                             <span className="nearby__category">{NEARBY_LABELS[n.category] || 'Рядом'}</span>
                             {n.name}

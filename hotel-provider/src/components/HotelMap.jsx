@@ -14,7 +14,9 @@ const hotelIcon = L.divIcon({
 
 function Recenter({ center }) {
   const map = useMap();
-  useEffect(() => map.setView(center), [center, map]);
+  useEffect(() => {
+    map.setView(center);
+  }, [center, map]);
   return null;
 }
 
