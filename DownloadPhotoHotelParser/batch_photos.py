@@ -56,6 +56,11 @@ BAD_PARENTHETICAL = re.compile(
 )
 # Логотипы и карты — не фотографии отеля.
 BAD_FILENAME = re.compile(r"logo|логотип|coat_of_arms|\bmap\b|wordmark", re.IGNORECASE)
+# Статья должна состоять в «гостиничной» категории: отсекает тёзок
+# (отель «Пётр I» — не статья о царе, «Садовническая» — не статья об улице).
+HOTEL_CATEGORY = re.compile(r"гостиниц|хостел|hotel|отел", re.IGNORECASE)
+# Для файлов Commons достаточно и «архитектурного» слова: Building, фасад, вид.
+COMMONS_HINT = re.compile(r"гостиниц|хостел|hotel|отел|building|здание|фасад|facade|view|вид", re.IGNORECASE)
 
 PENDING_SQL = """
     SELECT id, name FROM hotels
@@ -98,11 +103,20 @@ def _sorted_pages(data: dict) -> list[dict]:
 def search_wikipedia(name: str, tokens: list[str]) -> str | None:
     data = api_get("ru.wikipedia.org", {
         "generator": "search", "gsrsearch": f"{name} отель Москва", "gsrlimit": 5,
-        "prop": "pageimages", "piprop": "thumbnail", "pithumbsize": THUMB_WIDTH,
+        "prop": "pageimages|categories", "piprop": "thumbnail", "pithumbsize": THUMB_WIDTH,
+        "cllimit": "max",
     })
+
+    def is_hotel_article(page: dict) -> bool:
+        return any(
+            HOTEL_CATEGORY.search(category.get("title", ""))
+            for category in page.get("categories") or []
+        )
+
     candidates = [
         page for page in _sorted_pages(data)
         if title_matches(page.get("title", ""), tokens) and page.get("thumbnail")
+        and is_hotel_article(page)
         and not BAD_FILENAME.search(page["thumbnail"]["source"])
     ]
     # Среди подходящих статей московская важнее киевской или самарской тёзки.
@@ -123,7 +137,9 @@ def search_commons(name: str, tokens: list[str]) -> str | None:
             continue
         info = (page.get("imageinfo") or [{}])[0]
         url = info.get("thumburl") or info.get("url")
-        if url and not BAD_FILENAME.search(url) and not BAD_FILENAME.search(page.get("title", "")):
+        title = page.get("title", "")
+        # Для Commons название файла должно само говорить, что это отель.
+        if url and COMMONS_HINT.search(title) and not BAD_FILENAME.search(url) and not BAD_FILENAME.search(title):
             return url
     return None
 
