@@ -1,18 +1,11 @@
-<<<<<<< HEAD
-# Created by venv; see https://docs.python.org/3/library/venv.html
-
-#key-env/virtual environment
+# Виртуальные окружения
 .env
+.venv/
 venv/
 
-#cache
+# Кэши Python
 __pycache__/
 *.pyc
-=======
-.venv
-<<<<<<< HEAD
->>>>>>> origin/Arsenii
-=======
-.venv/
->>>>>>> Arsenii
->>>>>>> origin/Sanya
+
+# Логи
+*.log
