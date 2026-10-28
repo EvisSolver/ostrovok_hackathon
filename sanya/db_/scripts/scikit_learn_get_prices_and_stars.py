@@ -1,18 +1,29 @@
-import io
-import pandas as pd
+# -*- coding: utf-8 -*-
+"""Пересчёт цен (руб./ночь) и звёзд отелей: PostgreSQL + CSV-датасет.
+Цена: лог-линейная Ridge vs GradientBoosting vs их бленд - выбор по кросс-валидации.
+Звёзды: порядковая Ridge-регрессия по тем же признакам + log(цены)."""
+import io, re, difflib, warnings
 import numpy as np
-from sqlalchemy import create_engine, text
-from sklearn.ensemble import GradientBoostingRegressor, RandomForestClassifier
-from sklearn.linear_model import Ridge
-from sklearn.preprocessing import StandardScaler
+import pandas as pd
+from sqlalchemy import create_engine, text, inspect
+from sklearn.compose import TransformedTargetRegressor
+from sklearn.ensemble import GradientBoostingRegressor, VotingRegressor
 from sklearn.impute import SimpleImputer
+from sklearn.linear_model import RidgeCV
+from sklearn.metrics import make_scorer
+from sklearn.model_selection import RepeatedKFold, KFold, cross_validate, cross_val_predict
 from sklearn.pipeline import make_pipeline
+from sklearn.preprocessing import QuantileTransformer
 
-# 1. Подключение к базе данных Docker
+warnings.filterwarnings("ignore")
+
 DATABASE_URL = "postgresql://otters:hackathon@localhost:5432/otters_db"
-engine = create_engine(DATABASE_URL)
+MIN_TRAIN_PRICE = 1500   # дешевле - шум, в обучение не берём
+MIN_PRED_PRICE = 2200    # границы прогноза, руб./ночь
+MAX_PRED_PRICE = 26000
+SEED = 42
 
-# Данные вашего CSV-файла
+# Пётр I: убраны ошибочные 800 руб. из хакатон-датасета. Комментарии внутри CSV недопустимы.
 csv_data = """name,winter,summer,,,stars
 Славянка,3200,3500,,,
 Два Льва,2250,4750,,,
@@ -34,7 +45,7 @@ Azimut Moscow Tulskaya Hotel,3300,4250,,,
 Инсайд Бизнес,3500,4350,,,
 Maxima Panorama,4700,6850,,,
 Кадашевская,7800,9000,,,
-Пётр I,8500,16000,,, -- ИСПРАВЛЕНО: убрали ошибочные 800 рублей из хакатон-датасета
+Пётр I,8500,16000,,,
 Mercure Arbat Moscow,7200,9000,,,
 Mercure Москва Бауманская,5300,8900,,,
 Adagio Москва Павелецкая,5600,7650,,,
@@ -114,88 +125,151 @@ DoubleTree by Hilton Hotel Moscow - Marina,10200,13000,,,
 DoubleTree by Hilton Moscow - Vnukovo Airport,13500,16000,,,
 Stand Art,18000,23000,,,"""
 
-print("1/4 Загрузка датасета и инфраструктуры...")
-df_hotels = pd.read_sql("SELECT id, name, price, stars FROM hotels;", engine)
-df_geo = pd.read_sql("""
-    SELECT 
-        hotel_id, distance_to_metro_meters, distance_to_road_meters, 
-        dist_to_main_road_meters, dist_to_mkad_meters, distance_to_shop_meters, 
-        distance_to_green_zones_meters, distance_to_where_to_eat_meters, 
-        distance_to_attraction_meters, roads_within_100m, crossings_within_100m 
-    FROM mv_hotels_analytics;
-""", engine)
+GEO = ["distance_to_metro_meters", "distance_to_road_meters", "dist_to_main_road_meters",
+       "dist_to_mkad_meters", "distance_to_shop_meters", "distance_to_green_zones_meters",
+       "distance_to_where_to_eat_meters", "distance_to_attraction_meters"]
+COUNTS = ["roads_within_100m", "crossings_within_100m"]
+KEYWORDS = {  # ключевые слова в названии - маркер ценового сегмента
+    "kw_luxury": "hilton|intercontinental|doubletree|marriott|radisson|hyatt|kempinski|lotte|lottle|"
+                 "sheraton|palace|палас|grand|гранд|дворец|president|президент|mamaison",
+    "kw_mid": "mercure|novotel|holiday|hampton|adagio|azimut|азимут|maxima|максима|select|бизнес|"
+              "residence|резиденс|spa|спа",
+    "kw_budget": "ibis|ибис|хостел|hostel|мини|mini|комфорт|эконом|общежит|капсул|уютный|комнат|"
+                 "гостевой|подъезд",
+    "kw_apart": "apart|апарт|suites|loft|лофт|квартир|house",
+}
+FEATURES = GEO + COUNTS + list(KEYWORDS) + ["name_latin"]
 
-df_master = pd.merge(df_hotels, df_geo, left_on="id", right_on="hotel_id", how="left")
 
-# Интеграция CSV
-df_csv = pd.read_csv(io.StringIO(csv_data.strip())).iloc[:, :4]
-df_csv.columns = ["csv_name", "winter", "summer", "csv_stars"]
-df_csv["csv_price"] = ((df_csv["winter"] + df_csv["summer"]) / 2).round()
+def norm(s):
+    return re.sub(r"\s+", " ", str(s).lower().replace("ё", "е").replace('"', "")).strip()
 
-df_master["clean_name"] = df_master["name"].str.strip().str.lower()
-df_csv["clean_name"] = df_csv["csv_name"].str.strip().str.lower()
-df_master = pd.merge(df_master, df_csv, on="clean_name", how="left")
 
-df_master["price"] = df_master["csv_price"].fillna(df_master["price"])
-df_master["stars"] = df_master["csv_stars"].fillna(df_master["stars"])
+def ridge():
+    # QuantileTransformer: убирает перекосы расстояний и ОБРЕЗАЕТ значения вне диапазона обучения,
+    # поэтому линейная модель не может экстраполировать нетипичный отель в 50 000 руб.
+    return make_pipeline(SimpleImputer(strategy="median"),
+                         QuantileTransformer(output_distribution="normal", n_quantiles=50),
+                         RidgeCV(alphas=np.logspace(-2, 3, 40)))
 
-# --- FEATURE ENGINEERING (УЛУЧШЕНИЕ ПРИЗНАКОВ) ---
-geo_cols = [
-    "distance_to_metro_meters", "distance_to_road_meters", 
-    "dist_to_main_road_meters", "dist_to_mkad_meters", "distance_to_shop_meters", 
-    "distance_to_green_zones_meters", "distance_to_where_to_eat_meters", 
-    "distance_to_attraction_meters"
-]
 
-# Заполняем NaN медианой перед логарифмированием
-imputer = SimpleImputer(strategy="median")
-df_master[geo_cols] = imputer.fit_transform(df_master[geo_cols])
+def gbr():
+    return make_pipeline(SimpleImputer(strategy="median"), GradientBoostingRegressor(
+        loss="huber", n_estimators=300, learning_rate=0.05, max_depth=3,
+        subsample=0.8, min_samples_leaf=5, random_state=SEED))
 
-# Применяем логарифм log1p (чтобы убрать нелинейность расстояний)
-for col in geo_cols:
-    df_master[f"log_{col}"] = np.log1p(df_master[col])
 
-# Финальный набор признаков для моделей
-features = [f"log_{col}" for col in geo_cols] + ["roads_within_100m", "crossings_within_100m"]
+def log_target(reg):  # учим log(цены) -> модель минимизирует ошибку в процентах, а не в рублях
+    return TransformedTargetRegressor(regressor=reg, func=np.log1p, inverse_func=np.expm1)
 
-print("2/4 Обучение улучшенной модели Ridge Регрессии + Градиентный бустинг для цен...")
-# Фильтруем заведомый шум: убираем отели дешевле 1500 руб из обучения, чтобы поднять базовый прогноз
-train_p = df_master[(df_master["price"].notna()) & (df_master["price"] >= 1500)]
-predict_p = df_master[df_master["price"].isna()]
 
-if len(predict_p) > 0:
-    # Используем конвейер: Масштабирование -> Продвинутый Регрессор (Градиентный бустинг над деревьями)
-    # Он идеально находит сложные зависимости в ценах
-    model_price = make_pipeline(StandardScaler(), GradientBoostingRegressor(n_estimators=100, random_state=42, max_depth=4))
-    model_price.fit(train_p[features], train_p["price"])
-    
-    # Предсказываем и ограничиваем минимальную цену (например, 2200 руб), чтобы хостелы не падали в 800 рублей
-    pred_res = model_price.predict(predict_p[features]).round().astype(int)
-    pred_res = np.clip(pred_res, 2200, None) 
-    
-    df_master.loc[df_master["price"].isna(), "price"] = pred_res
-    print(f"   ► Цены успешно пересчитаны для {len(predict_p)} отелей.")
+def rmsle(y, p):
+    return float(np.sqrt(np.mean((np.log1p(y) - np.log1p(np.clip(p, 1, None))) ** 2)))
 
-print("3/4 Обучение классификатора звезд...")
-train_s = df_master[df_master["stars"].notna()]
-predict_s = df_master[df_master["stars"].isna()]
 
-if len(predict_s) > 0:
-    # Для звезд добавляем нормализованную цену как мощный маркер
-    stars_features = features + ["price"]
-    model_stars = make_pipeline(StandardScaler(), RandomForestClassifier(n_estimators=200, random_state=42, max_depth=6))
-    model_stars.fit(train_s[stars_features], train_s["stars"].astype(int))
-    
-    df_master.loc[df_master["stars"].isna(), "stars"] = model_stars.predict(predict_s[stars_features]).astype(int)
-    print(f"   ► Звездность успешно пересчитана.")
+def select_price_model(X, y):
+    cands = {"Ridge (лог-линейная)": log_target(ridge()),
+             "GradientBoosting": log_target(gbr()),
+             "Blend Ridge+GBR": log_target(VotingRegressor([("r", ridge()), ("g", gbr())]))}
+    if len(y) < 20:
+        return "Ridge (лог-линейная)", cands["Ridge (лог-линейная)"]
+    scoring = {"rmsle": make_scorer(rmsle, greater_is_better=False),
+               "mape": "neg_mean_absolute_percentage_error"}
+    cv = RepeatedKFold(n_splits=5, n_repeats=2, random_state=SEED)
+    best, best_score = None, np.inf
+    print(f"   Кросс-валидация (5-fold x 2), n={len(y)}:")
+    for name, m in cands.items():
+        r = cross_validate(m, X, y, cv=cv, scoring=scoring, n_jobs=-1)
+        s = -r["test_rmsle"].mean()
+        print(f"      {name:<22} RMSLE={s:.3f}  MAPE={-r['test_mape'].mean():.1%}")
+        if s < best_score:
+            best, best_score = name, s
+    return best, cands[best]
 
-print("4/4 Запись реалистичных предсказаний в PostgreSQL...")
-with engine.begin() as conn:
-    for _, row in df_master.iterrows():
-        conn.execute(
-            text("UPDATE hotels SET price = :price, stars = :stars WHERE id = :id;"),
-            {"price": int(row["price"]), "stars": int(row["stars"]), "id": row["id"]}
-        )
-    conn.execute(text("REFRESH MATERIALIZED VIEW mv_hotels_analytics;"))
 
-print("🎉 Модель успешно переобучена с использованием нормализации, логарифмирования и защиты от аномалий!")
+def main():
+    engine = create_engine(DATABASE_URL)
+    # Флаги "значение предсказано моделью": при повторном запуске не учимся на своих же прогнозах
+    have = {c["name"] for c in inspect(engine).get_columns("hotels")}
+    with engine.begin() as conn:
+        for col in ("price_is_predicted", "stars_is_predicted"):
+            if col not in have:
+                conn.execute(text(f"ALTER TABLE hotels ADD COLUMN {col} BOOLEAN NOT NULL DEFAULT FALSE"))
+
+    print("1/4 Загрузка данных...")
+    df = pd.read_sql("SELECT id, name, price, stars, price_is_predicted, stars_is_predicted FROM hotels", engine)
+    geo = pd.read_sql(f"SELECT hotel_id, {', '.join(GEO + COUNTS)} FROM mv_hotels_analytics", engine)
+    df = df.merge(geo, left_on="id", right_on="hotel_id", how="left")
+    df.loc[df["price_is_predicted"].astype(bool), "price"] = np.nan
+    df.loc[df["stars_is_predicted"].astype(bool), "stars"] = np.nan
+    df["price"] = pd.to_numeric(df["price"], errors="coerce").where(lambda s: s > 0)
+    df["stars"] = pd.to_numeric(df["stars"], errors="coerce").where(lambda s: s > 0)
+    df["clean_name"] = df["name"].map(norm)
+
+    # CSV: средняя по сезонам; если сезоны отличаются >3 раз (опечатка вида 7200/800) - берём большую
+    csv = pd.read_csv(io.StringIO(csv_data))[["name", "winter", "summer", "stars"]]
+    lo, hi = csv[["winter", "summer"]].min(axis=1), csv[["winter", "summer"]].max(axis=1)
+    csv["csv_price"] = np.where(lo / hi < 0.35, hi, (lo + hi) / 2).round()
+    csv["csv_stars"] = pd.to_numeric(csv["stars"], errors="coerce")
+    csv["clean_name"] = csv["name"].map(norm)
+    db_names = df["clean_name"].unique().tolist()
+    for i, nm in csv["clean_name"].items():  # нечёткое сопоставление опечаток ("Lottle Hottle" -> "Lotte Hotel")
+        if nm not in db_names:
+            close = difflib.get_close_matches(nm, db_names, n=1, cutoff=0.85)
+            print(f"   ~ '{nm}' -> '{close[0]}'" if close else f"   ! нет в БД: {nm}")
+            if close:
+                csv.at[i, "clean_name"] = close[0]
+    csv = csv[["clean_name", "csv_price", "csv_stars"]].drop_duplicates("clean_name")
+    df = df.merge(csv, on="clean_name", how="left")
+    df["price"] = df["csv_price"].fillna(df["price"])
+    df["stars"] = df["csv_stars"].fillna(df["stars"])
+    df.loc[df["csv_price"].notna(), "price_is_predicted"] = False
+    df.loc[df["csv_stars"].notna(), "stars_is_predicted"] = False
+
+    for col, pat in KEYWORDS.items():
+        df[col] = df["clean_name"].str.contains(pat).astype(int)
+    df["name_latin"] = df["clean_name"].str.contains("[a-z]").astype(int)
+    print(f"   отелей {len(df)}, с ценой {df['price'].notna().sum()}, со звёздами {df['stars'].notna().sum()}")
+
+    print("2/4 Цена...")
+    train = df[df["price"] >= MIN_TRAIN_PRICE]
+    y = train["price"].clip(upper=MAX_PRED_PRICE)  # единичные выбросы (50 000) не тянут модель вверх
+    name, model = select_price_model(train[FEATURES], y)
+    model.fit(train[FEATURES], y)
+    mask = df["price"].isna()
+    if mask.any():
+        pred = np.clip(model.predict(df.loc[mask, FEATURES]), MIN_PRED_PRICE, MAX_PRED_PRICE).round()
+        df.loc[mask, "price"], df.loc[mask, "price_is_predicted"] = pred, True
+        print(f"   ► {name}: предсказано {mask.sum()} цен; медиана {np.median(pred):,.0f}, "
+              f"max {pred.max():,.0f}, упёрлись в потолок {MAX_PRED_PRICE}: {(pred >= MAX_PRED_PRICE).sum()}")
+    else:
+        print("   ! Нет отелей без цены - модели нечего предсказывать.")
+
+    print("3/4 Звёзды...")
+    df["log_price"] = np.log1p(df["price"])
+    feats = FEATURES + ["log_price"]
+    tr, mask = df[df["stars"].notna()], df["stars"].isna()
+    if mask.any():
+        if len(tr) >= 10:  # порядковая регрессия: предсказываем число звёзд и округляем
+            cv_pred = cross_val_predict(ridge(), tr[feats], tr["stars"], cv=KFold(5, shuffle=True, random_state=SEED))
+            print(f"   CV MAE звёзд: {np.abs(np.clip(np.rint(cv_pred), 1, 5) - tr['stars']).mean():.2f} (n={len(tr)})")
+            pred = np.clip(np.rint(ridge().fit(tr[feats], tr["stars"]).predict(df.loc[mask, feats])), 1, 5)
+        else:  # разметки мало - по рангу цены
+            q = df.loc[mask, "price"].rank(pct=True).to_numpy()
+            pred = np.select([q <= .15, q <= .5, q <= .85], [2, 3, 4], 5)
+        df.loc[mask, "stars"], df.loc[mask, "stars_is_predicted"] = pred, True
+        print(f"   ► предсказано {mask.sum()} звёзд: {pd.Series(pred).astype(int).value_counts().sort_index().to_dict()}")
+
+    print("4/4 Запись в PostgreSQL...")
+    rows = [dict(id=int(r.id), price=int(r.price), stars=int(r.stars),
+                 pp=bool(r.price_is_predicted), sp=bool(r.stars_is_predicted)) for r in df.itertuples()]
+    with engine.begin() as conn:
+        conn.execute(text("UPDATE hotels SET price=:price, stars=:stars, price_is_predicted=:pp, "
+                          "stars_is_predicted=:sp WHERE id=:id"), rows)
+        if engine.dialect.name == "postgresql":
+            conn.execute(text("REFRESH MATERIALIZED VIEW mv_hotels_analytics"))
+    print(f"🎉 Обновлено {len(rows)} отелей. Модель цены: {name}")
+
+
+if __name__ == "__main__":
+    main()
