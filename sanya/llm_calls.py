@@ -34,12 +34,22 @@ class LLM_Call_Functions:
     
     # 2. Применяем декоратор и передаем имя файла. На вход метод ждет только dict_answer.
     @staticmethod
-    @db_query("get_random_hotel_with_stars.sql")
-    async def get_random_hotel_with_stars(dict_answer: dict) -> dict:
-        # Здесь мы пишем МИНИМУМ кода: только маппинг параметров для SQL
-        return {"stars_number": str(dict_answer["stars"])}
-
-    @staticmethod
-    @db_query("get_meters_to_hotel.sql")
-    async def get_meters_to_hotel(dict_answer: dict) -> dict:
-        return {"id": dict_answer["id"]}
+    @db_query("request_for_llm.sql")
+    async def get_random_hotel_with_stars(dict_answer: Union[dict, str]) -> dict:
+        return {
+            "hotel_price": dict_answer.get("hotel_price"),
+            "hotels_stars": dict_answer.get("hotels_stars"),
+            # Текущий промпт metro_names не формирует, но список можно передать отдельно.
+            "metro_names": dict_answer.get("metro_names"),
+            "distance_to_metro_meters": dict_answer.get("distance_to_metro_meters"),
+            "distance_to_green_zones_meters": dict_answer.get("distance_to_green_zones_meters"),
+            "distance_to_attraction_meters": dict_answer.get("distance_to_attraction_meters"),
+            "distance_to_road_meters": dict_answer.get("distance_to_road_meters"),
+            "distance_to_shop_meters": dict_answer.get("distance_to_shop_meters"),
+            "distance_to_where_to_eat_meters": dict_answer.get("distance_to_where_to_eat_meters"),
+            "roads_within_100m": dict_answer.get("roads_within_100m"),
+            "shop_malls_name": dict_answer.get("shop_malls_name"),
+            "where_to_eat_name": dict_answer.get("where_to_eat_name"),
+            "where_to_eat_type": dict_answer.get("where_to_eat_type"),
+            "main_road_name": dict_answer.get("main_road_name"),
+        }
