@@ -1,0 +1,45 @@
+2026-10-27 21:40:39,918 | INFO     | hotel_photos | Начат поиск: отель='Москва отель ривьера', limit=3
+2026-10-27 21:40:41,440 | ERROR    | hotel_photos | Источник google недоступен
+Traceback (most recent call last):
+  File "/home/peacedeath/python_projects/DownloadPhotoHotelParser/hotel_photos.py", line 308, in find
+    photos = provider.search(page, query, limit)
+  File "/home/peacedeath/python_projects/DownloadPhotoHotelParser/hotel_photos.py", line 234, in search
+    raise SearchError("Google запросил капчу или подтверждение согласия")
+SearchError: Google запросил капчу или подтверждение согласия
+2026-10-27 21:40:42,999 | INFO     | hotel_photos | Bing Images: получено 35 ссылок
+2026-10-27 21:40:44,460 | INFO     | hotel_photos | Поиск завершён, найдено 3 фото
+2026-10-27 22:30:04,082 | INFO     | hotel_photos | Начат поиск: отель='Москва отель вечный зов', limit=5
+2026-10-27 22:30:05,360 | ERROR    | hotel_photos | Источник google недоступен
+Traceback (most recent call last):
+  File "/home/peacedeath/python_projects/DownloadPhotoHotelParser/hotel_photos.py", line 308, in find
+    photos = provider.search(page, query, limit)
+  File "/home/peacedeath/python_projects/DownloadPhotoHotelParser/hotel_photos.py", line 234, in search
+    raise SearchError("Google запросил капчу или подтверждение согласия")
+SearchError: Google запросил капчу или подтверждение согласия
+2026-10-27 22:30:06,967 | INFO     | hotel_photos | Bing Images: получено 35 ссылок
+2026-10-27 22:30:09,097 | INFO     | hotel_photos | Поиск завершён, найдено 5 фото
+2026-10-27 23:01:22,625 | INFO     | hotel_photos | Начат поиск: отель='Москва отель Radisson Blu Олимпийский', limit=5
+2026-10-27 23:01:24,159 | ERROR    | hotel_photos | Источник google недоступен
+Traceback (most recent call last):
+  File "/home/peacedeath/python_projects/DownloadPhotoHotelParser/hotel_photos.py", line 308, in find
+    photos = provider.search(page, query, limit)
+  File "/home/peacedeath/python_projects/DownloadPhotoHotelParser/hotel_photos.py", line 234, in search
+    raise SearchError("Google запросил капчу или подтверждение согласия")
+SearchError: Google запросил капчу или подтверждение согласия
+2026-10-27 23:01:25,790 | INFO     | hotel_photos | Bing Images: получено 35 ссылок
+2026-10-27 23:01:28,608 | INFO     | hotel_photos | Поиск завершён, найдено 5 фото
+2026-10-27 23:03:13,606 | INFO     | hotel_photos | Начат поиск: отель='Москва отель Radisson Blu Олимпийский', limit=5
+2026-10-27 23:03:15,022 | ERROR    | hotel_photos | Источник google недоступен
+Traceback (most recent call last):
+  File "/home/peacedeath/python_projects/DownloadPhotoHotelParser/hotel_photos.py", line 308, in find
+    photos = provider.search(page, query, limit)
+  File "/home/peacedeath/python_projects/DownloadPhotoHotelParser/hotel_photos.py", line 234, in search
+    raise SearchError("Google запросил капчу или подтверждение согласия")
+SearchError: Google запросил капчу или подтверждение согласия
+2026-10-27 23:03:16,426 | INFO     | hotel_photos | Bing Images: получено 35 ссылок
+2026-10-27 23:03:16,592 | WARNING  | hotel_photos | Фото 1 не скачано: Файл уже существует; перезапись запрещена
+2026-10-27 23:03:17,271 | WARNING  | hotel_photos | Фото 2 не скачано: Файл уже существует; перезапись запрещена
+2026-10-27 23:03:17,899 | WARNING  | hotel_photos | Фото 3 не скачано: Файл уже существует; перезапись запрещена
+2026-10-27 23:03:18,420 | WARNING  | hotel_photos | Фото 4 не скачано: Файл уже существует; перезапись запрещена
+2026-10-27 23:03:18,564 | WARNING  | hotel_photos | Фото 5 не скачано: Файл уже существует; перезапись запрещена
+2026-10-27 23:03:18,565 | INFO     | hotel_photos | Поиск завершён, найдено 5 фото
