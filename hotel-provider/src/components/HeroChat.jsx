@@ -115,7 +115,7 @@ export default function HeroChat({ hotelSlug, filters, query, onSelectHotel }) {
           </div>
           {messages.map((m, i) => (
             <div key={i} className={`chatgpt-msg chatgpt-msg--${m.role}${m.error ? ' is-error' : ''}`}>
-              <span className="chatgpt-msg__avatar" data-role={m.role}>{m.role === 'bot' ? 'Отель' : 'Вы'}</span>
+              <span className="chatgpt-msg__avatar" data-role={m.role}>{m.role === 'bot' ? 'Помощник' : 'Вы'}</span>
               <div className="chatgpt-msg__body">
                 <div className="chatgpt-msg__content">{m.text}</div>
                 <ChatHotelLinks hotels={m.hotels} onSelect={onSelectHotel} />
@@ -123,7 +123,7 @@ export default function HeroChat({ hotelSlug, filters, query, onSelectHotel }) {
             </div>
           ))}
           {pending && !streaming && <div className="chatgpt-msg chatgpt-msg--bot chatgpt-msg--typing">
-            <span className="chatgpt-msg__avatar" data-role="bot">Отель</span>
+            <span className="chatgpt-msg__avatar" data-role="bot">Помощник</span>
             <div className="chatgpt-typing-row"><span className="chatgpt-typing-row__text">Ищем подходящие варианты</span><div className="chatgpt-typing-dots"><span /><span /><span /></div></div>
           </div>}
         </div>
