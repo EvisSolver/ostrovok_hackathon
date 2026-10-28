@@ -84,4 +84,8 @@ FROM (
         AND (f.where_to_eat_name IS NULL OR h.where_to_eat_name = f.where_to_eat_name)
         AND (f.where_to_eat_type IS NULL OR h.where_to_eat_type = f.where_to_eat_type)
         AND (f.main_road_name IS NULL OR h.main_road_name = f.main_road_name)
+    -- Без LIMIT широкий фильтр отдавал до 938 отелей одним JSON — весь список уходил
+    -- в промпт ANSWER_COMPOSER. Берём случайную восьмёрку подходящих.
+    ORDER BY random()
+    LIMIT 8
 ) AS main_result;

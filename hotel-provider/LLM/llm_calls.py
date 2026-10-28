@@ -1,6 +1,8 @@
+import os
 import psycopg
 import functools
 from pathlib import Path
+from typing import Union
 from psycopg.rows import dict_row
 
 from llm_calls_config import *
@@ -19,8 +21,9 @@ def db_query(sql_filename: str):
             query_params = await func(dict_answer, *args, **kwargs)
             
             # Управляем подключением к базе данных в одном месте
+            # В Docker 127.0.0.1 — это сам контейнер; адрес базы задаётся переменной окружения.
             async with await psycopg.AsyncConnection.connect(
-                "postgresql://otters:hackathon@127.0.0.1:5432/otters_db",
+                os.getenv("HOTELS_DATABASE_URL", "postgresql://otters:hackathon@127.0.0.1:5432/otters_db"),
                 row_factory=dict_row
             ) as connection:
                 async with connection.cursor() as cur:

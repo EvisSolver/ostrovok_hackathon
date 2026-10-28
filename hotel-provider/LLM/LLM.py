@@ -4,10 +4,12 @@ from pystyle import Colors, Write
 
 from config import *
 
-from LLM_REQUEST_BUILDER import llm_1_response
-from LLM_DATA_FETCHER import llm_2_response
 from LLM_LOCAL_MODEL import LLM_LOCAL_DATA_FETCHER
 from LLM_LOCAL_REQUEST_BUILDER import LLM_LOCAL_REQUEST_BUILDER
+# TODO(temp-api): УБРАТЬ после проверки — API-версии первых двух агентов вместо ollama.
+from LLM_REQUEST_BUILDER import llm_1_response
+from LLM_DATA_FETCHER import llm_2_response
+# TODO(temp-api): конец импортов.
 
 from LLM_ANSWER_COMPOSER import llm_3_response
 
@@ -16,8 +18,12 @@ from llm_calls import LLM_Call_Functions
 
 class LLM:
     def __init__(self, request_builder: dict, data_fetcher: dict, answer_composer: dict):
-        self.request_builder = LLM_LOCAL_REQUEST_BUILDER(request_builder)
-        self.data_fetcher = LLM_LOCAL_DATA_FETCHER(data_fetcher)
+        # TODO(temp-api): УБРАТЬ после проверки — вернуть две строки с LLM_LOCAL_*.
+        # self.request_builder = LLM_LOCAL_REQUEST_BUILDER(request_builder)
+        # self.data_fetcher = LLM_LOCAL_DATA_FETCHER(data_fetcher)
+        self.request_builder = llm_1_response.LLM_REQUEST_BUILDER(request_builder)
+        self.data_fetcher = llm_2_response.LLM_DATA_FETCHER(data_fetcher)
+        # TODO(temp-api): конец замены.
         self.answer_composer = llm_3_response.LLM_ANSWER_COMPOSER(answer_composer)
 
         self.llm_call = LLM_Call_Functions
@@ -25,10 +31,17 @@ class LLM:
     async def pipeline(self, user_text: str) -> dict:
         async with httpx.AsyncClient(timeout = 67) as llm_client:
             hotel = "Eleon"
-            text_for_data_fetcher = await self.request_builder.llm_local_model_response_REQUEST_BUILDER(user_text)
-            if text_for_data_fetcher == '{"command": "stop"}': return await self.pipeline(self, user_text)
+            # TODO(temp-api): УБРАТЬ после проверки — вернуть вызов llm_local_model_response_REQUEST_BUILDER(user_text).
+            text_for_data_fetcher = await self.request_builder.llm_response_REQUEST_BUILDER(llm_client, user_text)
+            if text_for_data_fetcher == '{"command": "stop"}': return await self.pipeline(user_text)
             print(text_for_data_fetcher)
-            text_for_answer_composer = await self.data_fetcher.llm_local_model_response_DATA_FETCHER(text_for_data_fetcher)
+            # TODO(temp-api): УБРАТЬ после проверки — вернуть вызов llm_local_model_response_DATA_FETCHER(text_for_data_fetcher).
+            text_for_answer_composer = await self.data_fetcher.llm_response_DATA_FETCHER(llm_client, text_for_data_fetcher)
+            # TODO(temp-api): API-модель, в отличие от ollama с format=json, может обернуть JSON в ```-блок.
+            text_for_answer_composer = text_for_answer_composer.strip()
+            if text_for_answer_composer.startswith("```"):
+                text_for_answer_composer = text_for_answer_composer.strip("`").removeprefix("json").strip()
+            # TODO(temp-api): конец обработки.
 
             dict_answer = json.loads(text_for_answer_composer)
             hotel_info_from_db = await LLM_Call_Functions.get_random_hotel_with_stars(dict_answer)
@@ -87,8 +100,7 @@ class LLM:
             Text_For_User = await self.answer_composer.llm_response_ANSWER_COMPOSER(llm_client, answer_for_LLM_ANSWER_COMPOSER)
 
             return {
-                "t_f_d_f": text_for_data_fetcher,
-                "t_f_a_c": text_for_answer_composer,
+                "h_i_f_db": hotel_info_from_db,
                 "T_F_U": Text_For_User
             }
 
@@ -111,5 +123,4 @@ class LLM:
         except KeyboardInterrupt: print("\nexit")
         except Exception: traceback.print_exc()
 
-if __name__ == "__main__": 
-    LLM(REQUEST_BUILDER, DATA_FETCHER, ANSWER_COMPOSER).run()
+if __name__ == "__main__": LLM(REQUEST_BUILDER, DATA_FETCHER, ANSWER_COMPOSER).run()

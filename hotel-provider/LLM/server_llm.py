@@ -1,3 +1,4 @@
+
 import json
 import re
 from typing import Any
@@ -78,6 +79,45 @@ def _hotel_ids(value: Any) -> list[int]:
     return found
 
 
+def _mentioned_hotel_ids(selection: Any, answer: str) -> list[int]:
+    """ID только тех отелей, чьи названия реально прозвучали в ответе: композер
+    разбирает 1-2 лучших и таблицу, а в данных отелей больше — лишние ссылки запутывают."""
+    pairs: list[tuple[int, str]] = []
+
+    def visit(node: Any) -> None:
+        if isinstance(node, dict):
+            raw_id = node.get("hotel_id") or node.get("id")
+            name = node.get("hotel_name") or node.get("name")
+            try:
+                hotel_id = int(raw_id)
+            except (TypeError, ValueError):
+                hotel_id = 0
+            if hotel_id > 0 and isinstance(name, str) and name.strip():
+                pairs.append((hotel_id, name.strip()))
+            for item in node.values():
+                if isinstance(item, (dict, list)):
+                    visit(item)
+        elif isinstance(node, list):
+            for item in node:
+                visit(item)
+
+    visit(selection)
+    # Модель вольно обращается с написанием («ZNWR» -> «Z N W R»), поэтому
+    # сравниваем без регистра, пробелов и пунктуации.
+    def fold(value: str) -> str:
+        return re.sub(r"[^0-9a-zа-яё]+", "", value.lower())
+
+    answer_folded = fold(answer or "")
+    seen: set[int] = set()
+    found: list[int] = []
+    for hotel_id, name in pairs:
+        folded = fold(name)
+        if folded and hotel_id not in seen and folded in answer_folded:
+            seen.add(hotel_id)
+            found.append(hotel_id)
+    return found
+
+
 @app.get("/health")
 async def health():
     return {"status": "ok"}
@@ -91,9 +131,13 @@ async def generate(req: QueryRequest):
 
     try:
         result = await service.pipeline(text)
-        selection_json = _parse_json_response(result.get("t_f_a_c"))
-        hotel_ids = _hotel_ids(selection_json)
+        selection_json = _parse_json_response(result.get("h_i_f_db"))
         final_answer = result.get("T_F_U", "")
+        # Композер — «думающая» модель: её рассуждения <think>…</think> человеку не показываем.
+        final_answer = re.sub(r"<think>.*?(?:</think>|$)", "", final_answer, flags=re.DOTALL).strip()
+        # Ссылки — только на отели, названные в ответе; если имена не совпали
+        # (модель перефразировала) — отдаём всё, что выбрала база.
+        hotel_ids = _mentioned_hotel_ids(selection_json, final_answer) or _hotel_ids(selection_json)
         return QueryResponse(
             response=final_answer,
             hotel_ids=hotel_ids,
@@ -104,4 +148,4 @@ async def generate(req: QueryRequest):
             },
         )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Ошибка генерации: {e}")
+        raise HTTPException(status_code=500, detail=f"Повторите позже. Помощник снова моет посуду. Ответит как только сможет!")
