@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import ChatHotelLinks from './ChatHotelLinks.jsx';
 import { askAI, askSupport, loadHistory } from '../services/chatApi.js';
 
 const CHANNELS = {
@@ -118,14 +118,7 @@ export default function HeroChat({ hotelSlug, filters, query, onSelectHotel }) {
               <span className="chatgpt-msg__avatar" data-role={m.role}>{m.role === 'bot' ? 'Отель' : 'Вы'}</span>
               <div className="chatgpt-msg__body">
                 <div className="chatgpt-msg__content">{m.text}</div>
-                {m.hotels?.length > 0 && <div className="chatgpt-hotels">
-                  <span className="chatgpt-hotels__label">Отели по вашему запросу</span>
-                  <div className="chatgpt-hotels__grid">{m.hotels.map((h) => (
-                    <Link key={h.slug} to={`/hotels/${h.slug}`} className="chatgpt-hotel-pill" onClick={() => onSelectHotel?.(h.slug)}>
-                      <span className="chatgpt-hotel-pill__name">{h.name}</span><span className="chatgpt-hotel-pill__arrow">→</span>
-                    </Link>
-                  ))}</div>
-                </div>}
+                <ChatHotelLinks hotels={m.hotels} onSelect={onSelectHotel} />
               </div>
             </div>
           ))}

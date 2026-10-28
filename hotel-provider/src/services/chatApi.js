@@ -3,7 +3,8 @@
  *
  * POST /api/chat/stream — ИИ-помощник, ответ приходит потоком (Server-Sent Events):
  *     event: token  data: {"t": "кусок текста"}
- *     event: done   data: {"hotels": [{"slug": "...", "name": "..."}]}
+ *     event: done   data: {"hotels": [{"slug": "hotel-123", "name": "...", "stars": 4, "priceFrom": 5600}]}
+ *                   — нейронка отдаёт ID отелей из базы, сервер подменяет их на настоящие названия/ссылки/звёзды
  *     event: busy   data: {"retryAfter": 3}        // сервер перегружен, клиент повторит сам
  *     event: error  data: {"message": "..."}
  * POST /api/support — чат с поддержкой, обычный JSON-ответ {"reply": "..."}
@@ -112,27 +113,27 @@ async function mockAIResponse(lastMessage, onToken, ctx = {}) {
   if (isSochi) {
     text = `Для отдыха у моря в Сочи${filterNote} рекомендую обратить внимание на Отель «Дендрарий» (5 звёзд, 3 минуты до пляжа) и Гостиницу «Приморская» (3 звезды, отличный доступный вариант у набережной).`;
     hotels = [
-      { slug: 'dendrariy-sochi', name: 'Отель «Дендрарий»' },
-      { slug: 'primorskaya-sochi', name: 'Гостиница «Приморская»' },
+      { slug: 'dendrariy-sochi', name: 'Отель «Дендрарий»', stars: 5 },
+      { slug: 'primorskaya-sochi', name: 'Гостиница «Приморская»', stars: 3 },
     ];
   } else if (isMoscow) {
     text = `В Москве${filterNote} отличный выбор — Отель «Тверская» (5 звёзд, 5 минут до метро Маяковская, окна на Тверскую улицу).`;
-    hotels = [{ slug: 'tverskaya-moscow', name: 'Отель «Тверская»' }];
+    hotels = [{ slug: 'tverskaya-moscow', name: 'Отель «Тверская»', stars: 5 }];
   } else if (isSpb) {
     text = `В Санкт-Петербурге${filterNote} советую Отель «Невский» (4 звезды, у Невского проспекта, до метро 3 минуты пешком).`;
-    hotels = [{ slug: 'nevsky-spb', name: 'Отель «Невский»' }];
+    hotels = [{ slug: 'nevsky-spb', name: 'Отель «Невский»', stars: 4 }];
   } else if (isBudget) {
     text = `Среди доступных вариантов с комфортной ценой${filterNote} обратите внимание на Гостиницу «Приморская» в Сочи (от 3 900 ₽ за ночь) и Отель «Невский» в Санкт-Петербурге (от 6 200 ₽).`;
     hotels = [
-      { slug: 'primorskaya-sochi', name: 'Гостиница «Приморская»' },
-      { slug: 'nevsky-spb', name: 'Отель «Невский»' },
+      { slug: 'primorskaya-sochi', name: 'Гостиница «Приморская»', stars: 3 },
+      { slug: 'nevsky-spb', name: 'Отель «Невский»', stars: 4 },
     ];
   } else {
     text = `Я подобрал отличные отели с учётом ваших пожеланий${filterNote}: Отель «Тверская» в Москве, Отель «Невский» в Санкт-Петербурге и Отель «Дендрарий» в Сочи. Все выбранные фильтры применены!`;
     hotels = [
-      { slug: 'tverskaya-moscow', name: 'Отель «Тверская»' },
-      { slug: 'dendrariy-sochi', name: 'Отель «Дендрарий»' },
-      { slug: 'nevsky-spb', name: 'Отель «Невский»' },
+      { slug: 'tverskaya-moscow', name: 'Отель «Тверская»', stars: 5 },
+      { slug: 'dendrariy-sochi', name: 'Отель «Дендрарий»', stars: 5 },
+      { slug: 'nevsky-spb', name: 'Отель «Невский»', stars: 4 },
     ];
   }
 

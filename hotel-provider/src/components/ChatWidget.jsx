@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import ChatHotelLinks from './ChatHotelLinks.jsx';
 import { askAI, askSupport, loadHistory } from '../services/chatApi.js';
 
 const CHANNELS = {
@@ -99,9 +99,7 @@ export default function ChatWidget({ hotelSlug }) {
             {messages.map((m, i) => (
               <div key={i} className={`chat__msg chat__msg--${m.role}${m.error ? ' is-error' : ''}`}>
                 {m.text}
-                {m.hotels?.length > 0 && (
-                  <div className="chat__links">{m.hotels.map((h) => <Link key={h.slug} to={`/hotels/${h.slug}`}>{h.name}</Link>)}</div>
-                )}
+                <ChatHotelLinks hotels={m.hotels} variant="inline" />
               </div>
             ))}
             {pending && !streaming && <div className="chat__msg chat__msg--bot chat__typing">Печатает…</div>}

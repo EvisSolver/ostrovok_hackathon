@@ -578,6 +578,25 @@
   }
 }
 
+/* Маленькая пометка со звёздами рядом с названием отеля в чате: «4★» */
+.chat-hotel-stars {
+  display: inline-flex;
+  align-items: center;
+  padding: .05rem .4rem;
+  border-radius: 999px;
+  background: rgba(255, 224, 0, .45);
+  color: $ink;
+  font-size: .72rem;
+  font-weight: 800;
+  line-height: 1.4;
+  white-space: nowrap;
+  transition: background .15s, color .15s;
+}
+.chatgpt-hotel-pill:hover .chat-hotel-stars {
+  background: rgba(255, 255, 255, .22);
+  color: #fff;
+}
+
 /* Пометка о том, что фильтры сайта учитываются в чате */
 .chatgpt-filter-note {
   display: flex;

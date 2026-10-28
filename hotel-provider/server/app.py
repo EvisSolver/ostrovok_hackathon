@@ -22,6 +22,7 @@ import asyncio
 import json
 import logging
 import os
+import re
 import time
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -206,9 +207,94 @@ def load_hotels() -> list[dict]:
     return _hotels_cache["data"]
 
 
+# ---- обёртка над ответом нейронки: ID отелей -> настоящие отели из каталога ----
+# Нейронка возвращает текст ответа и JSON с ID отелей из БД. Точный формат ещё не зафиксирован,
+# поэтому extract_hotel_ids() принимает несколько вариантов:
+#   {"response": "...", "hotel_ids": [1, 2]}
+#   {"response": "...", "hotels": [{"id": 1}, {"hotel_id": 2}]}
+#   {"response": "...", "json": {"hotels": [...]}}   (любая вложенность — ищем ключи id/hotel_id)
+#   текст ответа с JSON-блоком в конце: "...текст... ```json {"hotel_ids": [1, 2]} ```"
+ID_KEYS = {"id", "hotel_id", "hotelId", "hotelID"}
+LIST_KEYS = ("hotel_ids", "hotelIds", "ids", "hotels", "selected", "selected_hotels", "json", "data", "result")
+MAX_CHAT_HOTELS = 6
+_TRAILING_JSON = re.compile(r"```(?:json)?\s*(\{.*?\}|\[.*?\])\s*```\s*$", re.DOTALL | re.IGNORECASE)
+
+
+def _as_hotel_id(value) -> Optional[int]:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value if value > 0 else None
+    if isinstance(value, str) and value.strip().removeprefix("hotel-").isdigit():
+        return int(value.strip().removeprefix("hotel-"))
+    return None
+
+
+def extract_hotel_ids(payload) -> list[int]:
+    """Достаёт ID отелей из JSON нейронки в порядке появления, без дублей."""
+    found: list[int] = []
+
+    def add(value):
+        hotel_id = _as_hotel_id(value)
+        if hotel_id is not None and hotel_id not in found:
+            found.append(hotel_id)
+
+    def visit(node, depth=0):
+        if depth > 6:
+            return
+        if isinstance(node, dict):
+            for key, item in node.items():
+                if key in ID_KEYS:
+                    add(item)
+                elif key in LIST_KEYS or depth > 0:
+                    visit(item, depth + 1)
+        elif isinstance(node, list):
+            for item in node:
+                if isinstance(item, (dict, list)):
+                    visit(item, depth + 1)
+                else:
+                    add(item)
+
+    visit(payload)
+    return found
+
+
+def split_answer_and_ids(text: str) -> tuple[str, list[int]]:
+    """Если нейронка вернула JSON с ID прямо в тексте ответа (в конце, в ```json```), отделяем его от текста."""
+    m = _TRAILING_JSON.search(text or "")
+    if not m:
+        return text, []
+    try:
+        ids = extract_hotel_ids(json.loads(m.group(1)))
+    except json.JSONDecodeError:
+        return text, []
+    return text[:m.start()].rstrip(), ids
+
+
+async def hotels_by_ids(hotel_ids: list[int]) -> list[dict]:
+    """Настоящие названия, ссылки и звёзды по ID из БД. Порядок — как у нейронки, неизвестные ID пропускаются."""
+    ids = hotel_ids[:MAX_CHAT_HOTELS]
+    if not ids or S.hotels_pool is None:
+        return []
+    try:
+        rows = await S.hotels_pool.fetch(
+            f"SELECT id, name, stars, price FROM hotels WHERE id = ANY($1::int[]) AND {HOTEL_NAME_PREDICATE}", ids)
+    except Exception:
+        log.exception("Не удалось получить отели по ID %s", ids)
+        return []
+    by_id = {row["id"]: row for row in rows}
+    return [{
+        "id": hotel_id,
+        "slug": f"hotel-{hotel_id}",
+        "name": by_id[hotel_id]["name"],
+        "stars": by_id[hotel_id]["stars"] or 0,
+        "priceFrom": by_id[hotel_id]["price"],
+    } for hotel_id in ids if hotel_id in by_id]
+
+
 def mentioned_hotels(text: str, hotels: list[dict]) -> list[dict]:
-    """Отели, названные в ответе, — фронт покажет на них ссылки."""
-    return [{"slug": h["slug"], "name": h["name"]} for h in hotels if h["name"] in text][:3]
+    """Запасной вариант, когда нейронка не вернула ID: ищем названия из hotels.json в тексте ответа."""
+    return [{"slug": h["slug"], "name": h["name"], "stars": h.get("stars", 0)} for h in hotels if h["name"] in text][:3]
 
 
 # ======================= ЗДЕСЬ РАБОТАЕТ НЕЙРОНКА =======================
@@ -227,10 +313,8 @@ def build_system_prompt(current_hotel: Optional[dict], hotels: list[dict]) -> st
 
 async def stream_model(system_prompt: str, history: list[dict]):
     """
-    Асинхронный генератор: отдаёт ответ нейронки.
-    history — [{"role": "user"|"assistant", "text": "..."}], последнее — вопрос человека.
-    Если задан LLM_SERVICE_URL, используется Docker-микросервис LLM.
-    Иначе, если MODEL_URL задан, используется OpenAI-совместимый сервер. Иначе — заглушка.
+    Асинхронный генератор: отдаёт кортеж (кусок ответа, ID отелей).
+    ID передаются только один раз, обычно вместе с первым ответом LLM-сервиса.
     """
     if LLM_SERVICE_URL:
         user_message = history[-1]["text"]
@@ -242,17 +326,18 @@ async def stream_model(system_prompt: str, history: list[dict]):
             )
             r.raise_for_status()
             data = r.json()
-            yield data.get("response", "")
+            text, ids_in_text = split_answer_and_ids(data.get("response", ""))
+            yield text, extract_hotel_ids(data) or ids_in_text
             return
         except Exception as e:
             log.error(f"Ошибка обращения к LLM_SERVICE_URL: {e}")
-            yield f"Ошибка сервиса нейросети: {e}"
+            yield f"Ошибка сервиса нейросети: {e}", []
             return
 
     if not MODEL_URL:
         for word in f"Заглушка ИИ. Вы написали: «{history[-1]['text']}»".split(" "):
             await asyncio.sleep(0.05)
-            yield word + " "
+            yield word + " ", []
         return
 
     payload = {
@@ -276,7 +361,7 @@ async def stream_model(system_prompt: str, history: list[dict]):
                     delta = json.loads(data)["choices"][0]["delta"].get("content")
                     if delta:
                         started = True
-                        yield delta
+                        yield delta, []
             return
         except (httpx.TransportError, httpx.HTTPStatusError):
             if started or attempt == 2:
@@ -318,13 +403,17 @@ async def chat_stream(req: ChatRequest, request: Request):
             try:
                 await S.store.append(req.userId, "ai", "user", req.message)
                 history = await S.store.history(req.userId, "ai", MODEL_HISTORY)
-                parts = []
-                async for chunk in stream_model(build_system_prompt(current, hotels), history):
+                parts, hotel_ids = [], []
+                async for chunk, ids in stream_model(build_system_prompt(current, hotels), history):
                     parts.append(chunk)
-                    yield sse("token", {"t": chunk})
+                    hotel_ids += [i for i in ids if i not in hotel_ids]
+                    if chunk:
+                        yield sse("token", {"t": chunk})
                 full = "".join(parts)
                 await S.store.append(req.userId, "ai", "assistant", full)
-                yield sse("done", {"hotels": mentioned_hotels(full, hotels)})
+                # ID из JSON нейронки -> настоящие отели из БД; без ID — старый поиск по названиям
+                linked = await hotels_by_ids(hotel_ids) or mentioned_hotels(full, hotels)
+                yield sse("done", {"hotels": linked})
             finally:
                 S.slots.release()          # срабатывает и при обрыве соединения клиентом
         except Exception:
