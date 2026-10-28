@@ -248,7 +248,7 @@ body { letter-spacing: -.005em; }
   .landing-hero {
     min-height: calc(100vh - 60px);
     padding: 1.6rem 1rem 1.2rem;
-    background: radial-gradient(64rem 40rem at 60% -14%, #275648 0%, transparent 60%), #173a31;
+    // Фон не переопределяем: на телефоне тот же тёмный, что и на десктопе.
   }
   .chatgpt-welcome__heading { font-size: clamp(2.15rem, 10vw, 3.2rem); }
   .chatgpt-welcome__sub { margin-bottom: 1.5rem; }

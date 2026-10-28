@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import ChatHotelLinks from './ChatHotelLinks.jsx';
+import ChatMarkdown from './ChatMarkdown.jsx';
 import { askAI, askSupport, loadHistory } from '../services/chatApi.js';
 
 const CHANNELS = {
@@ -34,17 +35,12 @@ export default function HeroChat({ hotelSlug, filters, query, onSelectHotel }) {
   const [input, setInput] = useState('');
   const [pending, setPending] = useState(false);
   const [loaded, setLoaded] = useState(false);
-  const messagesBoxRef = useRef(null);
   const inputRef = useRef(null);
 
   const messages = history[channel];
   const streaming = messages[messages.length - 1]?.streaming;
   const hasUserMessages = messages.length > 0;
   const activeFilters = getActiveFiltersList(filters, query);
-
-  useEffect(() => {
-    if (messagesBoxRef.current && hasUserMessages) messagesBoxRef.current.scrollTop = messagesBoxRef.current.scrollHeight;
-  }, [messages, pending, hasUserMessages]);
 
   useEffect(() => {
     if (loaded) return;
@@ -108,7 +104,7 @@ export default function HeroChat({ hotelSlug, filters, query, onSelectHotel }) {
           </div>
         </div>
       ) : (
-        <div ref={messagesBoxRef} className="chatgpt-stream" aria-live="polite">
+        <div className="chatgpt-stream" aria-live="polite">
           <div className="chatgpt-stream__header">
             <span className="chatgpt-stream__indicator"><span className="chatgpt-stream__dot" />{channel === 'ai' ? 'Подбор отеля' : 'Поддержка'}</span>
             <button type="button" className="chatgpt-stream__reset-btn" onClick={resetChat} title="Начать новый поиск">Новый поиск</button>
@@ -117,7 +113,7 @@ export default function HeroChat({ hotelSlug, filters, query, onSelectHotel }) {
             <div key={i} className={`chatgpt-msg chatgpt-msg--${m.role}${m.error ? ' is-error' : ''}`}>
               <span className="chatgpt-msg__avatar" data-role={m.role}>{m.role === 'bot' ? 'Помощник' : 'Вы'}</span>
               <div className="chatgpt-msg__body">
-                <div className="chatgpt-msg__content">{m.text}</div>
+                <div className="chatgpt-msg__content">{m.role === 'bot' ? <ChatMarkdown text={m.text} /> : m.text}</div>
                 <ChatHotelLinks hotels={m.hotels} onSelect={onSelectHotel} />
               </div>
             </div>
@@ -137,7 +133,7 @@ export default function HeroChat({ hotelSlug, filters, query, onSelectHotel }) {
       <form className="chatgpt-input-dock" onSubmit={(e) => { e.preventDefault(); handleSend(); }}>
         <label className="chatgpt-bar">
           <span className="chatgpt-bar__label">ВАШИ ПОЖЕЛАНИЯ</span>
-          <input ref={inputRef} value={input} onChange={(e) => setInput(e.target.value)} placeholder="Например, тихий отель у моря с завтраком" aria-label="Пожелания к отелю" disabled={pending} />
+          <input ref={inputRef} value={input} onChange={(e) => setInput(e.target.value)} placeholder="Например, тихий отель у моря" aria-label="Пожелания к отелю" disabled={pending} />
         </label>
         <button type="submit" className={`chatgpt-submit-pill ${input.trim() && !pending ? 'is-ready' : ''}`} disabled={!input.trim() || pending} title="Подобрать подходящие отели" aria-label="Подобрать подходящие отели">
           <span>Подобрать</span>

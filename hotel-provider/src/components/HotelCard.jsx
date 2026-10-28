@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import CoverImage from './CoverImage.jsx';
 import Stars from './Stars.jsx';
 import { ACCESS, formatPrice } from '../utils.js';
 
@@ -16,7 +17,7 @@ export default function HotelCard({ hotel, highlight }) {
   return (
     <Link to={`/hotels/${slug}`} className="hotel-card" style={style}>
       <div className="hotel-card__media">
-        {cover ? <img src={cover} alt={name} loading="lazy" /> : <div className="img-placeholder tinted">Фото отеля</div>}
+        <CoverImage src={cover} alt={name} placeholderClassName="img-placeholder tinted" />
       </div>
 
       <div className="hotel-card__body">

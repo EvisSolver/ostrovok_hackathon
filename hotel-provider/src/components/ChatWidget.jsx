@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import ChatHotelLinks from './ChatHotelLinks.jsx';
+import ChatMarkdown from './ChatMarkdown.jsx';
 import { askAI, askSupport, loadHistory } from '../services/chatApi.js';
 
 const CHANNELS = {
@@ -16,16 +17,9 @@ export default function ChatWidget({ hotelSlug }) {
   const [input, setInput] = useState('');
   const [pending, setPending] = useState(false);
   const [loaded, setLoaded] = useState(false);
-  const messagesBoxRef = useRef(null);
 
   const messages = history[channel];
   const streaming = messages[messages.length - 1]?.streaming;
-
-  useEffect(() => {
-    if (messagesBoxRef.current) {
-      messagesBoxRef.current.scrollTop = messagesBoxRef.current.scrollHeight;
-    }
-  }, [messages, open, pending]);
 
   // при первом открытии подтягиваем сохранённую переписку с сервера
   useEffect(() => {
@@ -88,7 +82,7 @@ export default function ChatWidget({ hotelSlug }) {
             <button className="chat__close" onClick={() => setOpen(false)} aria-label="Закрыть чат">×</button>
           </div>
 
-          <div ref={messagesBoxRef} className="chat__messages" aria-live="polite">
+          <div className="chat__messages" aria-live="polite">
             {messages.length === 0 && (
               <div className="chat__msg chat__msg--bot chat__empty">
                 {channel === 'ai'
@@ -98,7 +92,7 @@ export default function ChatWidget({ hotelSlug }) {
             )}
             {messages.map((m, i) => (
               <div key={i} className={`chat__msg chat__msg--${m.role}${m.error ? ' is-error' : ''}`}>
-                {m.text}
+                {m.role === 'bot' ? <ChatMarkdown text={m.text} /> : m.text}
                 <ChatHotelLinks hotels={m.hotels} variant="inline" />
               </div>
             ))}

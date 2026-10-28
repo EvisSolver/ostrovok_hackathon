@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import CoverImage from '../components/CoverImage.jsx';
 import { Link, useParams } from 'react-router-dom';
 import Stars from '../components/Stars.jsx';
 import Section from '../components/Section.jsx';
@@ -63,7 +64,7 @@ export default function HotelPage() {
         </header>
 
         <div className="gallery">
-          {mainImg ? <img className="gallery__main" src={mainImg} alt={h.name} /> : <div className="img-placeholder gallery__main">Главное фото</div>}
+          <CoverImage src={mainImg} alt={h.name} className="gallery__main" placeholderClassName="img-placeholder gallery__main" />
           {restImgs.slice(0, 4).map((src, i) => <img key={i} src={src} alt={`${h.name} — фото ${i + 2}`} loading="lazy" />)}
         </div>
 

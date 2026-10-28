@@ -164,6 +164,7 @@ async def lifespan(_: FastAPI):
     S.hotels_pool = await asyncpg.create_pool(HOTELS_DATABASE_URL, min_size=1, max_size=5)
     async with S.hotels_pool.acquire() as connection:
         await connection.execute("ALTER TABLE hotels ADD COLUMN IF NOT EXISTS description TEXT")
+        await connection.execute("ALTER TABLE hotels ADD COLUMN IF NOT EXISTS photo_url TEXT")
     S.http = httpx.AsyncClient(timeout=httpx.Timeout(60, connect=5))
     S.slots = asyncio.Semaphore(MAX_CONCURRENT)
     yield
@@ -384,7 +385,14 @@ async def stream_model(system_prompt: str, history: list[dict]):
             return
         except Exception as e:
             log.error(f"Ошибка обращения к LLM_SERVICE_URL: {e}")
-            yield f"Ошибка сервиса нейросети: {e}", []
+            # Человеку — человеческое сообщение (из detail сервиса, если оно есть), без стектрейсов.
+            message = "Помощник сейчас недоступен. Попробуйте ещё раз через минуту."
+            if isinstance(e, httpx.HTTPStatusError):
+                try:
+                    message = e.response.json().get("detail") or message
+                except Exception:
+                    pass
+            yield message, []
             return
 
     if not MODEL_URL:
@@ -610,7 +618,7 @@ async def get_hotels(
     offset = (page - 1) * page_size
     count_sql = f"SELECT count(*) FROM hotels{where}"
     rows_sql = f"""
-        SELECT id, name, stars, price, description,
+        SELECT id, name, stars, price, description, photo_url,
                ST_Y(location::geometry) AS latitude,
                ST_X(location::geometry) AS longitude
         FROM hotels{where}
@@ -646,7 +654,7 @@ async def get_hotel(slug: str):
         raise HTTPException(404, "Отель не найден")
     try:
         row = await S.hotels_pool.fetchrow(f"""
-            SELECT id, name, stars, price, description,
+            SELECT id, name, stars, price, description, photo_url,
                    ST_Y(location::geometry) AS latitude,
                    ST_X(location::geometry) AS longitude
             FROM hotels
@@ -738,6 +746,7 @@ def _hotel_for_site(row, nearby=None) -> dict:
         if nearby is not None:
             location["nearby"] = nearby
     description = row.get("description") if hasattr(row, "get") else None
+    photo_url = row.get("photo_url") if hasattr(row, "get") else None
     return {
         "id": hotel_id,
         "slug": f"hotel-{hotel_id}",
@@ -751,6 +760,7 @@ def _hotel_for_site(row, nearby=None) -> dict:
         "priceSource": "synthetic-mock" if row["price"] is not None else None,
         "description": [description] if description else [],
         "tagline": _card_tagline(description, hotel_id),
+        "cover": photo_url or "",
         "currency": "RUB",
         "location": location,
         "lat": latitude,
