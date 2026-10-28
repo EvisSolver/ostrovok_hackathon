@@ -57,8 +57,13 @@
 Установите необходимые зависимости в ваше виртуальное окружение (`venv`):
 
 ```bash
-pip install httpx python-dotenv pystyle psycopg geopandas pandas scikit-learn
-export OPEN_ROUTER_KEY=your_deepinfra_key_here
+pip install requirements.txt
+
+sudo docker compose build
+sudo docker up
+
+http://127.0.0.1:8501/(DB)
+
 python LLM.py
 ```
 
