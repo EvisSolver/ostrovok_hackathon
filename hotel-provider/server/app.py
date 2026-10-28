@@ -610,7 +610,7 @@ async def get_hotels(
     offset = (page - 1) * page_size
     count_sql = f"SELECT count(*) FROM hotels{where}"
     rows_sql = f"""
-        SELECT id, name, stars, price,
+        SELECT id, name, stars, price, description,
                ST_Y(location::geometry) AS latitude,
                ST_X(location::geometry) AS longitude
         FROM hotels{where}
@@ -711,6 +711,23 @@ def _format_distance(distance_m) -> str:
     return f"{meters} м" if meters < 1000 else f"{meters / 1000:.1f} км"
 
 
+def _card_tagline(description: Optional[str], hotel_id: int, limit: int = 110) -> str:
+    """
+    Короткая подпись для карточки в каталоге. Описания собраны из нескольких шаблонных фраз,
+    поэтому фразу выбираем по ID отеля — соседние карточки получают разные подписи.
+    Последнее предложение («X — отель для самостоятельных путешественников») пропускаем: оно повторяет название.
+    """
+    sentences = [x.strip() for x in _SENTENCE_END.split((description or "").strip()) if x.strip()]
+    if len(sentences) > 1:
+        sentences = sentences[:-1]
+    if not sentences:
+        return ""
+    pick = sentences[hotel_id % len(sentences)]
+    if len(pick) <= limit:
+        return pick
+    return pick[:limit].rsplit(" ", 1)[0].rstrip(",;:") + "…"
+
+
 def _hotel_for_site(row, nearby=None) -> dict:
     hotel_id = row["id"]
     latitude = row["latitude"]
@@ -733,6 +750,7 @@ def _hotel_for_site(row, nearby=None) -> dict:
         "priceIsMock": row["price"] is not None,
         "priceSource": "synthetic-mock" if row["price"] is not None else None,
         "description": [description] if description else [],
+        "tagline": _card_tagline(description, hotel_id),
         "currency": "RUB",
         "location": location,
         "lat": latitude,
