@@ -1,0 +1,181 @@
+@use 'variables' as *;
+
+/*
+ * Подборка отелей под ответом помощника.
+ * На тёмном первом экране — кремовый «листок» (тот же материал, что карточки отелей по бокам):
+ * смена материала делает подборку пиком в ленте, а не ещё одним серым блоком.
+ */
+.chat-shortlist {
+  --sheet: #fffefa;
+  --sheet-ink: #{$ink};
+  --sheet-muted: #6c6f73;
+  --sheet-line: rgba(32, 33, 36, .1);
+  --sheet-hover: rgba(255, 224, 0, .22);
+  margin-top: .85rem;
+  width: 100%;
+  max-width: 620px;
+  color: var(--sheet-ink);
+  background: var(--sheet);
+  border-radius: 8px;
+  box-shadow: 0 12px 32px rgba(5, 22, 17, .28);
+  overflow: hidden;
+
+  &__head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 1rem;
+    padding: .7rem 1.1rem .55rem;
+    font-size: .68rem;
+    font-weight: 800;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--sheet-muted);
+    border-bottom: 1px solid var(--sheet-line);
+  }
+  &__count { font-weight: 700; letter-spacing: .04em; text-transform: none; }
+
+  &__list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    > li + li { border-top: 1px solid var(--sheet-line); }
+  }
+
+  &__row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1.25rem;
+    padding: .9rem 1.1rem .95rem;
+    color: inherit;
+    text-decoration: none;
+    transition: background .18s ease;
+
+    &:hover, &:focus-visible { background: var(--sheet-hover); outline: none; }
+    &:hover .chat-shortlist__go, &:focus-visible .chat-shortlist__go { color: var(--sheet-ink); }
+    &:hover .chat-shortlist__go span, &:focus-visible .chat-shortlist__go span { transform: translateX(3px); }
+    &:focus-visible { box-shadow: inset 0 0 0 2px $orange; }
+  }
+
+  &__main { flex: 1; min-width: 0; }
+
+  &__stars {
+    display: flex;
+    align-items: center;
+    gap: .4rem;
+    margin-bottom: .2rem;
+    font-size: .72rem;
+    font-weight: 600;
+    color: var(--sheet-muted);
+    .stars svg { width: 13px; height: 13px; }
+  }
+
+  &__name {
+    margin: 0;
+    font-size: 1.02rem;
+    font-weight: 800;
+    line-height: 1.2;
+    letter-spacing: -.015em;
+    text-wrap: balance;
+  }
+
+  &__snippet {
+    margin: .3rem 0 0;
+    max-width: 48ch;
+    font-size: .82rem;
+    line-height: 1.45;
+    color: var(--sheet-muted);
+  }
+
+  &__marks {
+    list-style: none;
+    display: flex;
+    flex-wrap: wrap;
+    gap: .3rem 1rem;
+    margin: .5rem 0 0;
+    padding: 0;
+    font-size: .76rem;
+    font-weight: 600;
+    color: var(--sheet-ink);
+
+    li { display: inline-flex; align-items: center; gap: .35rem; min-width: 0; }
+    svg { flex: none; color: var(--sheet-muted); }
+  }
+  &__mark-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 22ch; }
+  &__mark-dist {
+    font-variant-numeric: tabular-nums;
+    color: var(--sheet-muted);
+    &::before { content: '·'; margin-right: .35rem; }
+  }
+
+  &__side {
+    flex: none;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: .35rem;
+    text-align: right;
+  }
+
+  &__price {
+    font-size: .76rem;
+    color: var(--sheet-muted);
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+    strong { font-size: 1rem; font-weight: 800; color: var(--sheet-ink); }
+    &--none { font-weight: 600; }
+  }
+
+  &__go {
+    font-size: .76rem;
+    font-weight: 800;
+    color: var(--sheet-muted);
+    white-space: nowrap;
+    transition: color .18s ease;
+    span { display: inline-block; transition: transform .18s ease; }
+  }
+
+  /* Телефон: цена и действие уходят под описание, в одну строку */
+  @include down($bp-sm) {
+    max-width: none;
+    margin-top: .6rem;
+    &__row { flex-direction: column; gap: .55rem; padding: .85rem .9rem .9rem; }
+    &__side { flex-direction: row; justify-content: space-between; align-items: baseline; width: 100%; text-align: left; }
+    &__snippet { max-width: none; }
+    &__mark-name { max-width: 16ch; }
+  }
+
+  /* Компактный виджет на светлом фоне: рамка вместо тени */
+  &--inline {
+    margin-top: .55rem;
+    box-shadow: none;
+    border: 1px solid $line;
+    .chat-shortlist__head { padding: .5rem .8rem .4rem; }
+    .chat-shortlist__row { flex-direction: column; gap: .45rem; padding: .65rem .8rem .7rem; }
+    .chat-shortlist__side { flex-direction: row; justify-content: space-between; align-items: baseline; width: 100%; text-align: left; }
+    .chat-shortlist__name { font-size: .9rem; }
+    .chat-shortlist__snippet { display: none; }
+    .chat-shortlist__marks { font-size: .72rem; li { white-space: nowrap; } }
+    .chat-shortlist__mark-name { max-width: 18ch; }
+    .chat-shortlist__price strong { font-size: .9rem; }
+  }
+}
+
+/* Виджет: сообщение с подборкой занимает всю ширину панели */
+.chat__msg:has(.chat-shortlist) { max-width: 100%; }
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-shortlist__row, .chat-shortlist__go, .chat-shortlist__go span { transition: none; }
+}
+
+/* Телефон: сообщение с подборкой не делит ширину с подписью «Помощник» — подпись встаёт над текстом */
+@include down($bp-sm) {
+  .chatgpt-msg--bot:has(.chat-shortlist) {
+    flex-direction: column;
+    gap: .25rem;
+    max-width: 100%;
+    .chatgpt-msg__avatar { margin-top: 0; }
+    .chatgpt-msg__body { width: 100%; }
+  }
+}

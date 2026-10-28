@@ -271,25 +271,78 @@ def split_answer_and_ids(text: str) -> tuple[str, list[int]]:
     return text[:m.start()].rstrip(), ids
 
 
+MARK_MAX_DISTANCE_M = 3000      # дальше этого соседние места в чате не показываем
+_SENTENCE_END = re.compile(r"(?<=[.!?])\s+")
+
+
+def _snippet(description: Optional[str], used: set[str], limit: int = 120) -> str:
+    """
+    Одно предложение описания для подборки. Описания в базе шаблонные, поэтому берём первое
+    предложение, которое ещё не показано у соседей по списку, — иначе весь список читается одинаково.
+    """
+    sentences = [x.strip() for x in _SENTENCE_END.split((description or "").strip()) if x.strip()]
+    if not sentences:
+        return ""
+    pick = next((x for x in sentences[:2] if x not in used), sentences[0])
+    used.add(pick)
+    if len(pick) <= limit:
+        return pick
+    return pick[:limit].rsplit(" ", 1)[0].rstrip(",;:") + "…"
+
+
 async def hotels_by_ids(hotel_ids: list[int]) -> list[dict]:
-    """Настоящие названия, ссылки и звёзды по ID из БД. Порядок — как у нейронки, неизвестные ID пропускаются."""
+    """
+    Настоящие данные по ID из БД для блока под ответом: название, ссылка, звёзды, цена,
+    первое предложение описания и до двух «пометок» — ближайшая достопримечательность и ближайшая
+    зелёная зона/вода с расстоянием. Порядок — как у нейронки, неизвестные ID пропускаются.
+    """
     ids = hotel_ids[:MAX_CHAT_HOTELS]
     if not ids or S.hotels_pool is None:
         return []
+    named = "nearby.name IS NOT NULL AND btrim(nearby.name) <> '' AND lower(btrim(nearby.name)) <> 'unknown'"
+    sql = f"""
+        SELECT h.id, h.name, h.stars, h.price, h.description,
+               a.name AS attraction_name, a.distance_m AS attraction_m,
+               g.name AS green_name, g.type AS green_type, g.distance_m AS green_m
+        FROM hotels h
+        LEFT JOIN LATERAL (
+            SELECT nearby.name, ROUND(ST_Distance(h.location, nearby.location)::numeric) AS distance_m
+            FROM attraction nearby WHERE {named}
+            ORDER BY nearby.location <-> h.location LIMIT 1
+        ) a ON TRUE
+        LEFT JOIN LATERAL (
+            SELECT nearby.name, nearby.type, ROUND(ST_Distance(h.location, nearby.location)::numeric) AS distance_m
+            FROM green_zones nearby WHERE {named} AND nearby.type IN ('park', 'water', 'river')
+            ORDER BY nearby.location <-> h.location LIMIT 1
+        ) g ON TRUE
+        WHERE h.id = ANY($1::bigint[]) AND {HOTEL_NAME_PREDICATE.replace('name', 'h.name')}
+    """
     try:
-        rows = await S.hotels_pool.fetch(
-            f"SELECT id, name, stars, price FROM hotels WHERE id = ANY($1::int[]) AND {HOTEL_NAME_PREDICATE}", ids)
+        rows = await S.hotels_pool.fetch(sql, ids)
     except Exception:
         log.exception("Не удалось получить отели по ID %s", ids)
         return []
     by_id = {row["id"]: row for row in rows}
-    return [{
-        "id": hotel_id,
-        "slug": f"hotel-{hotel_id}",
-        "name": by_id[hotel_id]["name"],
-        "stars": by_id[hotel_id]["stars"] or 0,
-        "priceFrom": by_id[hotel_id]["price"],
-    } for hotel_id in ids if hotel_id in by_id]
+    result, used_snippets = [], set()
+    for hotel_id in ids:
+        row = by_id.get(hotel_id)
+        if row is None:
+            continue
+        marks = []
+        for kind, name, dist in (("attraction", row["attraction_name"], row["attraction_m"]),
+                                 (row["green_type"], row["green_name"], row["green_m"])):
+            if name and dist is not None and int(dist) <= MARK_MAX_DISTANCE_M:
+                marks.append({"kind": kind, "name": name, "distanceM": int(dist), "distance": _format_distance(dist)})
+        result.append({
+            "id": hotel_id,
+            "slug": f"hotel-{hotel_id}",
+            "name": row["name"],
+            "stars": row["stars"] or 0,
+            "priceFrom": row["price"],
+            "snippet": _snippet(row["description"], used_snippets),
+            "marks": marks,
+        })
+    return result
 
 
 def mentioned_hotels(text: str, hotels: list[dict]) -> list[dict]:

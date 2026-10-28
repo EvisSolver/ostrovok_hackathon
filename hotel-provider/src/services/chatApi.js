@@ -3,8 +3,10 @@
  *
  * POST /api/chat/stream — ИИ-помощник, ответ приходит потоком (Server-Sent Events):
  *     event: token  data: {"t": "кусок текста"}
- *     event: done   data: {"hotels": [{"slug": "hotel-123", "name": "...", "stars": 4, "priceFrom": 5600}]}
- *                   — нейронка отдаёт ID отелей из базы, сервер подменяет их на настоящие названия/ссылки/звёзды
+ *     event: done   data: {"hotels": [{"slug": "hotel-123", "name": "...", "stars": 4, "priceFrom": 5600,
+ *                             "snippet": "первое предложение описания",
+ *                             "marks": [{"kind": "attraction"|"park"|"water"|"river", "name": "...", "distance": "305 м"}]}]}
+ *                   — нейронка отдаёт ID отелей из базы, сервер подменяет их на настоящие данные из каталога
  *     event: busy   data: {"retryAfter": 3}        // сервер перегружен, клиент повторит сам
  *     event: error  data: {"message": "..."}
  * POST /api/support — чат с поддержкой, обычный JSON-ответ {"reply": "..."}
@@ -113,27 +115,27 @@ async function mockAIResponse(lastMessage, onToken, ctx = {}) {
   if (isSochi) {
     text = `Для отдыха у моря в Сочи${filterNote} рекомендую обратить внимание на Отель «Дендрарий» (5 звёзд, 3 минуты до пляжа) и Гостиницу «Приморская» (3 звезды, отличный доступный вариант у набережной).`;
     hotels = [
-      { slug: 'dendrariy-sochi', name: 'Отель «Дендрарий»', stars: 5 },
-      { slug: 'primorskaya-sochi', name: 'Гостиница «Приморская»', stars: 3 },
+      { slug: 'dendrariy-sochi', name: 'Отель «Дендрарий»', stars: 5, priceFrom: 12400, snippet: 'Первая линия, три минуты до пляжа.', marks: [{ kind: 'water', name: 'Чёрное море', distance: '240 м' }] },
+      { slug: 'primorskaya-sochi', name: 'Гостиница «Приморская»', stars: 3, priceFrom: 3900, snippet: 'Доступный вариант у набережной.', marks: [{ kind: 'park', name: 'Приморский парк', distance: '150 м' }] },
     ];
   } else if (isMoscow) {
     text = `В Москве${filterNote} отличный выбор — Отель «Тверская» (5 звёзд, 5 минут до метро Маяковская, окна на Тверскую улицу).`;
-    hotels = [{ slug: 'tverskaya-moscow', name: 'Отель «Тверская»', stars: 5 }];
+    hotels = [{ slug: 'tverskaya-moscow', name: 'Отель «Тверская»', stars: 5, priceFrom: 9800, snippet: 'Пять минут до метро, окна на Тверскую.', marks: [{ kind: 'attraction', name: 'Красная площадь', distance: '1.3 км' }] }];
   } else if (isSpb) {
     text = `В Санкт-Петербурге${filterNote} советую Отель «Невский» (4 звезды, у Невского проспекта, до метро 3 минуты пешком).`;
-    hotels = [{ slug: 'nevsky-spb', name: 'Отель «Невский»', stars: 4 }];
+    hotels = [{ slug: 'nevsky-spb', name: 'Отель «Невский»', stars: 4, priceFrom: 6200, snippet: 'У Невского проспекта, до метро три минуты.', marks: [{ kind: 'attraction', name: 'Казанский собор', distance: '400 м' }] }];
   } else if (isBudget) {
     text = `Среди доступных вариантов с комфортной ценой${filterNote} обратите внимание на Гостиницу «Приморская» в Сочи (от 3 900 ₽ за ночь) и Отель «Невский» в Санкт-Петербурге (от 6 200 ₽).`;
     hotels = [
-      { slug: 'primorskaya-sochi', name: 'Гостиница «Приморская»', stars: 3 },
-      { slug: 'nevsky-spb', name: 'Отель «Невский»', stars: 4 },
+      { slug: 'primorskaya-sochi', name: 'Гостиница «Приморская»', stars: 3, priceFrom: 3900, snippet: 'Доступный вариант у набережной.', marks: [{ kind: 'park', name: 'Приморский парк', distance: '150 м' }] },
+      { slug: 'nevsky-spb', name: 'Отель «Невский»', stars: 4, priceFrom: 6200, snippet: 'У Невского проспекта, до метро три минуты.', marks: [{ kind: 'attraction', name: 'Казанский собор', distance: '400 м' }] },
     ];
   } else {
     text = `Я подобрал отличные отели с учётом ваших пожеланий${filterNote}: Отель «Тверская» в Москве, Отель «Невский» в Санкт-Петербурге и Отель «Дендрарий» в Сочи. Все выбранные фильтры применены!`;
     hotels = [
-      { slug: 'tverskaya-moscow', name: 'Отель «Тверская»', stars: 5 },
-      { slug: 'dendrariy-sochi', name: 'Отель «Дендрарий»', stars: 5 },
-      { slug: 'nevsky-spb', name: 'Отель «Невский»', stars: 4 },
+      { slug: 'tverskaya-moscow', name: 'Отель «Тверская»', stars: 5, priceFrom: 9800, snippet: 'Пять минут до метро, окна на Тверскую.', marks: [{ kind: 'attraction', name: 'Красная площадь', distance: '1.3 км' }] },
+      { slug: 'dendrariy-sochi', name: 'Отель «Дендрарий»', stars: 5, priceFrom: 12400, snippet: 'Первая линия, три минуты до пляжа.', marks: [{ kind: 'water', name: 'Чёрное море', distance: '240 м' }] },
+      { slug: 'nevsky-spb', name: 'Отель «Невский»', stars: 4, priceFrom: 6200, snippet: 'У Невского проспекта, до метро три минуты.', marks: [{ kind: 'attraction', name: 'Казанский собор', distance: '400 м' }] },
     ];
   }
 

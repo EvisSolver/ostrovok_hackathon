@@ -18,8 +18,6 @@
     &--bot { align-self: flex-start; background: $surface; box-shadow: $shadow; border-bottom-left-radius: 4px; }
     &--user { align-self: flex-end; background: $blue; color: #fff; border-bottom-right-radius: 4px; }
     &.is-error { color: #c0392b; } }
-  &__links { display: flex; flex-direction: column; gap: .25rem; margin-top: .4rem; }
-  &__hotel-link { display: inline-flex; align-items: center; gap: .4rem; font-weight: 700; }
   &__typing { color: $muted; font-style: italic; }
 
   &__form { display: flex; gap: .5rem; padding: .7rem; border-top: 1px solid $line;

@@ -213,19 +213,6 @@ body { letter-spacing: -.005em; }
 .chatgpt-typing-row__text { color: var(--panel-muted, #{$muted}); font-size: .78rem; }
 .chatgpt-typing-dots { background: transparent; padding: 0; span { background: var(--panel-muted, #{$muted}); } }
 
-.chatgpt-hotels { margin-top: .55rem; }
-.chatgpt-hotels__label { color: var(--panel-muted, #{$muted}); font-size: .7rem; }
-.chatgpt-hotel-pill {
-  background: rgba(247, 244, 234, .07);
-  color: var(--panel-ink, #{$ink});
-  border-radius: 4px;
-  box-shadow: none;
-  padding: .4rem .75rem;
-  font-size: .8rem;
-  &:hover { background: #ffe000; color: #fffdf8; }
-  &__arrow { color: inherit; }
-}
-
 /* Карточки отелей по бокам */
 .ticker-card {
   border-radius: 8px;
