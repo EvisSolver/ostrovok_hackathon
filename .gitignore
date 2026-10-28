@@ -18,3 +18,6 @@ DownloadPhotoHotelParser/photos/
 
 # Резервные копии данных
 data/hotels_backup.json
+
+# Кэш Vite
+.vite/
