@@ -7,8 +7,8 @@ from sqlalchemy import insert
 import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from app.db import engine, AsyncSessionLocal
-from app.models import Base, Hotel, GreenZone, Road, Attraction, Shop_malls, Where_to_eat, Metro
+from sanya.db_.app.db import engine, AsyncSessionLocal
+from sanya.db_.app.models import Base, Hotel, GreenZone, Road, Attraction, Shop_malls, Where_to_eat
 
 def make_point(lat: float, lon: float) -> WKTElement:
     return WKTElement(f"POINT({lon} {lat})", srid=4326)
@@ -40,10 +40,19 @@ def get_coords(el: dict):
     return None, None
 
 def detect_zone_type(tags: dict) -> str:
-    if not tags:
-        return "unknown"
-    for key in ("shop", "amenity", "tourism", "leisure",
-                "water", "natural", "waterway", "building"):
+    for key in ("leisure", "natural", "waterway"):
+        if key in tags:
+            return tags[key]
+    return "unknown"
+ 
+def detect_shop_type(tags: dict) -> str: # ДОДЕЛАТЬДОДЕЛАТЬДОДЕЛАТЬДОДЕЛАТЬДОДЕЛАТЬДОДЕЛАТЬ
+    for key in ("leisure", "natural", "waterway"):
+        if key in tags:
+            return tags[key]
+    return "unknown"
+
+def detect_whereeat_type(tags: dict) -> str: # ДОДЕЛАТЬДОДЕЛАТЬДОДЕЛАТЬДОДЕЛАТЬДОДЕЛАТЬДОДЕЛАТЬ
+    for key in ("leisure", "natural", "waterway"):
         if key in tags:
             return tags[key]
     return "unknown"
@@ -56,7 +65,7 @@ async def main():
 
     # 2. Читаем отели
     print("Чтение отелей...")
-    with open("../data/moscow_hotels_priced.json", "r", encoding="utf-8") as f:
+    with open("../data/hotels.json", "r", encoding="utf-8") as f:
         hotels_raw = json.load(f).get("elements", [])
 
     hotel_rows = []
@@ -69,7 +78,6 @@ async def main():
             "name": tags.get("name", "Unknown"),
             "stars": parse_stars(tags.get("stars")),
             "location": make_point(lat, lon),
-            "price": int(tags["mock:price:avg"]) if "mock:price:avg" in tags else None
         })
 
     # 3. Читаем парки
@@ -122,7 +130,7 @@ async def main():
         shop_malls_rows.append({
             "id": el["id"],
             "name": tags.get("name", "Unknown"),
-            "type": detect_zone_type(tags),
+            "type": detect_shop_type(tags),
             "location": make_point(lat, lon),
         })
 
@@ -154,31 +162,16 @@ async def main():
         where_to_eat_rows.append({
             "id": el["id"],
             "name": tags.get("name", "Unknown"),
-            "type": detect_zone_type(tags),
+            "type": detect_whereeat_type(tags),
             "location": make_point(lat, lon),
         })
 
-    print("Чтение metro...")
-    with open("../data/metro.json", "r", encoding="utf-8") as f:
-        where_to_eat_raw = json.load(f).get("elements", [])
-
-    metro_rows = []
-    for el in where_to_eat_raw:
-        lat, lon = get_coords(el)
-        if lat is None: continue
-        tags = el.get("tags", {})
-        metro_rows.append({
-            "id": el["id"],
-            "name": tags.get("name", "Unknown"),
-            "location": make_point(lat, lon),
-        })
 
     # 4. Заливаем в базу
     print(
         f"Заливка: {len(hotel_rows)} отелей, {len(zone_rows)} зон, {len(road_rows)} дорог, "
         f"{len(attraction_rows)} достопримечательностей, {len(shop_malls_rows)} ТЦ, "
         f"{len(where_to_eat_rows)} точек еды"
-        f"{len(metro_rows)} станций метро"
     )
     async with AsyncSessionLocal() as session:
         async with session.begin():
@@ -189,7 +182,6 @@ async def main():
             await session.execute(Attraction.__table__.delete())
             await session.execute(Shop_malls.__table__.delete())
             await session.execute(Where_to_eat.__table__.delete())
-            await session.execute(Metro.__table__.delete())
 
             # Быстрый bulk insert
             if hotel_rows:
@@ -204,8 +196,6 @@ async def main():
                 await session.execute(insert(Shop_malls), shop_malls_rows)
             if road_rows: 
                 await session.execute(insert(Where_to_eat), where_to_eat_rows)
-            if road_rows: 
-                await session.execute(insert(Metro), metro_rows)
     
     print("✅ ETL успешно завершен!")
 
