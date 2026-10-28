@@ -30,7 +30,9 @@ export function normalizeHotel(raw = {}) {
     rating: null, reviewsCount: 0,
     gallery: [], description: [], highlights: [], amenities: [], rooms: [], reviews: [], policies: [],
     location: null, contacts: null, theme: null,
+    priceIsMock: false, priceSource: null, priceUnit: null,
     ...raw,
+    location: raw.location ? { ...raw.location, nearby: raw.location.nearby || [] } : null,
     access: computeAccess(raw),
   };
 }

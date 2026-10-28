@@ -39,7 +39,9 @@ export default function HotelCard({ hotel, highlight }) {
       </div>
 
       <div className="hotel-card__buy">
-        <div className="hotel-card__price"><span>от</span><strong>{formatPrice(priceFrom, currency)}</strong><span>за ночь</span></div>
+        <div className="hotel-card__price">{priceFrom != null ? (
+          <><span>от</span><strong>{formatPrice(priceFrom, currency)}</strong><span>за ночь</span></>
+        ) : <span>Цена не указана</span>}</div>
         <span className="btn btn--orange">Смотреть</span>
       </div>
     </Link>

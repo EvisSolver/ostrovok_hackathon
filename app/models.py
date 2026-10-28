@@ -1,5 +1,5 @@
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
-from sqlalchemy import String, Integer, BigInteger
+from sqlalchemy import String, Integer, BigInteger, Text
 from geoalchemy2 import Geography
 
 class Base(DeclarativeBase):
@@ -11,6 +11,7 @@ class Hotel(Base):
     name: Mapped[str] = mapped_column(String, nullable=True)
     stars: Mapped[int] = mapped_column(Integer, nullable=True)
     price: Mapped[int] = mapped_column(Integer, nullable=True)
+    description: Mapped[str] = mapped_column(Text, nullable=True)
     # Здесь хранится точка на карте в формате PostGIS
     location: Mapped[str] = mapped_column(Geography(geometry_type='POINT', srid=4326))
 

@@ -161,6 +161,8 @@ async def lifespan(_: FastAPI):
         raise RuntimeError("HOTELS_DATABASE_URL не задан: каталог отелей недоступен")
     import asyncpg
     S.hotels_pool = await asyncpg.create_pool(HOTELS_DATABASE_URL, min_size=1, max_size=5)
+    async with S.hotels_pool.acquire() as connection:
+        await connection.execute("ALTER TABLE hotels ADD COLUMN IF NOT EXISTS description TEXT")
     S.http = httpx.AsyncClient(timeout=httpx.Timeout(60, connect=5))
     S.slots = asyncio.Semaphore(MAX_CONCURRENT)
     yield
@@ -498,10 +500,11 @@ async def get_hotel(slug: str):
     try:
         hotel_id = int(slug.removeprefix("hotel-"))
     except ValueError:
+        # The database catalog uses numeric IDs; legacy demo links are not DB slugs.
         raise HTTPException(404, "Отель не найден")
     try:
         row = await S.hotels_pool.fetchrow(f"""
-            SELECT id, name, stars, price,
+            SELECT id, name, stars, price, description,
                    ST_Y(location::geometry) AS latitude,
                    ST_X(location::geometry) AS longitude
             FROM hotels
@@ -513,16 +516,69 @@ async def get_hotel(slug: str):
         raise HTTPException(503, "Каталог отелей временно недоступен") from exc
     if row is None:
         raise HTTPException(404, "Отель не найден")
-    return _hotel_for_site(row)
+
+    nearby = await _hotel_nearby(hotel_id)
+    return _hotel_for_site(row, nearby=nearby)
 
 
-def _hotel_for_site(row) -> dict:
+async def _hotel_nearby(hotel_id: int) -> list[dict]:
+    """Return the nearest named OSM features for a hotel."""
+    queries = (
+        ("park", "green_zones", "nearby.type = 'park'"),
+        ("water", "green_zones", "nearby.type = 'water'"),
+        ("river", "green_zones", "nearby.type = 'river'"),
+        ("road", "roads", "TRUE"),
+        ("attraction", "attraction", "TRUE"),
+        ("mall", "shop_malls", "TRUE"),
+        ("food", "where_to_eat", "TRUE"),
+    )
+    nearby = []
+    async with S.hotels_pool.acquire() as connection:
+        for category, table, condition in queries:
+            rows = await connection.fetch(
+                f"""
+                SELECT nearby.name, {('nearby.type' if table == 'green_zones' else 'NULL')} AS object_type,
+                       ROUND(ST_Distance(h.location, nearby.location)::numeric) AS distance_m
+                FROM hotels h
+                CROSS JOIN {table} nearby
+                WHERE h.id = $1
+                  AND {condition}
+                  AND nearby.name IS NOT NULL
+                  AND btrim(nearby.name) <> ''
+                  AND lower(btrim(nearby.name)) <> 'unknown'
+                ORDER BY nearby.location <-> h.location
+                LIMIT 2
+                """,
+                hotel_id,
+            )
+            nearby.extend(
+                {
+                    "category": category,
+                    "type": row["object_type"],
+                    "name": row["name"],
+                    "distanceM": int(row["distance_m"]),
+                    "distance": _format_distance(row["distance_m"]),
+                }
+                for row in rows
+            )
+    return nearby
+
+
+def _format_distance(distance_m) -> str:
+    meters = int(distance_m)
+    return f"{meters} м" if meters < 1000 else f"{meters / 1000:.1f} км"
+
+
+def _hotel_for_site(row, nearby=None) -> dict:
     hotel_id = row["id"]
     latitude = row["latitude"]
     longitude = row["longitude"]
     location = None
     if latitude is not None and longitude is not None:
         location = {"lat": latitude, "lng": longitude, "address": ""}
+        if nearby is not None:
+            location["nearby"] = nearby
+    description = row.get("description") if hasattr(row, "get") else None
     return {
         "id": hotel_id,
         "slug": f"hotel-{hotel_id}",
@@ -532,6 +588,9 @@ def _hotel_for_site(row) -> dict:
         "country": "Россия",
         "stars": row["stars"] or 0,
         "priceFrom": row["price"],
+        "priceIsMock": row["price"] is not None,
+        "priceSource": "synthetic-mock" if row["price"] is not None else None,
+        "description": [description] if description else [],
         "currency": "RUB",
         "location": location,
         "lat": latitude,

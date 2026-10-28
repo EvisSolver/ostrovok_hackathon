@@ -5,16 +5,31 @@ import Section from '../components/Section.jsx';
 import { getHotelBySlug } from '../services/hotelsService.js';
 import { ACCESS, formatPrice } from '../utils.js';
 import NotFoundPage from './NotFoundPage.jsx';
+import HotelMap from '../components/HotelMap.jsx';
+
+const NEARBY_LABELS = {
+  park: 'Парк', water: 'Водоём', river: 'Река', road: 'Дорога',
+  attraction: 'Достопримечательность', mall: 'Торговый центр', food: 'Кафе и места питания',
+};
 
 export default function HotelPage() {
   const { slug } = useParams();
-  const [hotel, setHotel] = useState(undefined); // undefined = грузится, null = не найден
+  const [hotel, setHotel] = useState(undefined); // undefined = loading, null = not found
+  const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
+    let active = true;
     setHotel(undefined);
-    getHotelBySlug(slug).then(setHotel);
+    setLoadError(false);
+    getHotelBySlug(slug).then((result) => {
+      if (active) setHotel(result);
+    }).catch(() => {
+      if (active) setLoadError(true);
+    });
+    return () => { active = false; };
   }, [slug]);
 
+  if (hotel === undefined && loadError) return <div className="container"><p>Не удалось загрузить страницу отеля. Попробуйте обновить её.</p><Link to="/" className="back">← Все отели</Link></div>;
   if (hotel === undefined) return <div className="container"><p className="muted">Загрузка…</p></div>;
   if (hotel === null) return <NotFoundPage />;
 
@@ -35,7 +50,13 @@ export default function HotelPage() {
             <p className="muted">{[h.location?.address, h.city, h.country].filter(Boolean).join(', ')}</p>
           </div>
           <div className="hotel-hero__price">
-            <span>от</span> <strong>{formatPrice(h.priceFrom, h.currency)}</strong> <span>за ночь</span>
+            {h.priceFrom != null ? (
+              <>
+                <span>от</span> <strong>{formatPrice(h.priceFrom, h.currency)}</strong>
+                <span> {h.priceUnit === 'per_bed' ? 'за место / ночь' : 'за ночь'}</span>
+                {h.priceIsMock && <small className="price-note">Ориентировочная mock-цена, не предложение бронирования</small>}
+              </>
+            ) : <span>Цена не указана</span>}
             <a href="#rooms" className="btn btn--orange">Выбрать номер</a>
           </div>
         </header>
@@ -99,12 +120,25 @@ export default function HotelPage() {
             )}
             {h.location && (
               <div className="panel"><h3>Расположение</h3>
-                <p>{h.location.address}</p>
-                {/* Сюда можно вставить карту (Leaflet/Google/Yandex) по h.location.lat / lng */}
-                <div className="img-placeholder map">Карта</div>
-                {h.location.nearby?.length > 0 && (
-                  <ul className="nearby">{h.location.nearby.map((n) => (<li key={n.name}><span>{n.name}</span><span>{n.distance}</span></li>))}</ul>
-                )}
+                {h.location.address && <p>{h.location.address}</p>}
+                <HotelMap lat={h.location.lat ?? h.lat} lng={h.location.lng ?? h.lon} name={h.name} />
+                {h.location.nearby?.length > 0 ? (
+                  <>
+                    <h4 className="nearby__heading">Что находится поблизости</h4>
+                    <p className="nearby__note">Расстояния по прямой, рассчитанные по данным карты.</p>
+                    <ul className="nearby">
+                      {h.location.nearby.map((n) => (
+                        <li key={`${n.category}-${n.name}`}>
+                          <span className="nearby__name">
+                            <span className="nearby__category">{NEARBY_LABELS[n.category] || 'Рядом'}</span>
+                            {n.name}
+                          </span>
+                          <strong>{n.distance}</strong>
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                ) : <p className="muted">Рядом не найдено именованных объектов из базы.</p>}
               </div>
             )}
             {h.contacts && (h.contacts.phone || h.contacts.email || h.contacts.website) && (
