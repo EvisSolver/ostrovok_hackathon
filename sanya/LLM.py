@@ -23,14 +23,18 @@ class LLM:
         async with httpx.AsyncClient(timeout = 67) as llm_client:
             hotel = "Eleon"
             text_for_data_fetcher = await self.request_builder.llm_response_REQUEST_BUILDER(llm_client, user_text)
+            print(text_for_data_fetcher)
+            text_for_answer_composer = await self.data_fetcher.llm_response_DATA_FETCHER(llm_client, text_for_data_fetcher)
 
-            dict_answer = json.loads(text_for_data_fetcher)
+            dict_answer = json.loads(text_for_answer_composer)
+            print(dict_answer)
             hotel = await LLM_Call_Functions.get_random_hotel_with_stars(dict_answer)
             print(hotel)
+            
             # for type_n, name in types_json.values(): print(type_n, name)
-            text_data = f"|AGENT-DATA|: {text_for_data_fetcher}. |DATA|: {hotel}"
-            text_for_answer_composer = await self.data_fetcher.llm_response_DATA_FETCHER(llm_client, text_data)
-            Text_For_User = await self.answer_composer.llm_response_ANSWER_COMPOSER(llm_client, text_for_answer_composer)
+
+            text_data = f"|AGENT-DATA|: {text_for_answer_composer}. |DATA|: {hotel}"
+            Text_For_User = await self.answer_composer.llm_response_ANSWER_COMPOSER(llm_client, text_data)
 
             return {
                 "t_f_d_f": text_for_data_fetcher,
