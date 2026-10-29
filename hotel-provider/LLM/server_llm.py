@@ -25,6 +25,15 @@ from config import REQUEST_BUILDER, DATA_FETCHER, ANSWER_COMPOSER
 
 app = FastAPI(title="LLM Multi-Agent Service", version="1.0.0")
 
+# Стартовая сводка конфигурации: первое, что видно в docker logs.
+log.info(
+    "старт: ollama=%s | база отелей=%s | ключ API: %s | лог-уровень=%s",
+    os.getenv("OLLAMA_HOST", "localhost:11434 (по умолчанию!)"),
+    (os.getenv("HOTELS_DATABASE_URL", "postgresql://…@127.0.0.1:5432/otters_db (по умолчанию)")).split("@")[-1],
+    "задан" if os.getenv("OPEN_ROUTER_KEY") else "НЕ ЗАДАН — агент 3 упадёт",
+    os.getenv("LLM_LOG_LEVEL", "INFO"),
+)
+
 # Инициализируем пайплайн из 3 агентов
 service = LLM(REQUEST_BUILDER, DATA_FETCHER, ANSWER_COMPOSER)
 
