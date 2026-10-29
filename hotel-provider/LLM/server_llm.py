@@ -1,10 +1,24 @@
 
 import json
+import logging
+import os
 import re
+import sys
+import time
+import uuid
 from typing import Any
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
+
+# Детальные логи сервиса — в stdout, то есть прямо в `docker logs`.
+# LLM_LOG_LEVEL=DEBUG печатает ответы агентов целиком, INFO — обрезанными.
+logging.basicConfig(
+    level=os.getenv("LLM_LOG_LEVEL", "INFO").upper(),
+    format="%(asctime)s | %(levelname)-7s | %(name)s | %(message)s",
+    stream=sys.stdout,
+)
+log = logging.getLogger("llm.api")
 
 from LLM import LLM
 from config import REQUEST_BUILDER, DATA_FETCHER, ANSWER_COMPOSER
@@ -129,15 +143,25 @@ async def generate(req: QueryRequest):
     if not text:
         raise HTTPException(status_code=400, detail="Поле 'message' не может быть пустым")
 
+    # Короткий id запроса связывает строки лога между собой и с ошибкой на сайте.
+    log_id = uuid.uuid4().hex[:8]
+    started = time.monotonic()
     try:
-        result = await service.pipeline(text)
+        result = await service.pipeline(text, log_id)
         selection_json = _parse_json_response(result.get("h_i_f_db"))
         final_answer = result.get("T_F_U", "")
         # Композер — «думающая» модель: её рассуждения <think>…</think> человеку не показываем.
         final_answer = re.sub(r"<think>.*?(?:</think>|$)", "", final_answer, flags=re.DOTALL).strip()
         # Ссылки — только на отели, названные в ответе; если имена не совпали
         # (модель перефразировала) — отдаём всё, что выбрала база.
-        hotel_ids = _mentioned_hotel_ids(selection_json, final_answer) or _hotel_ids(selection_json)
+        mentioned = _mentioned_hotel_ids(selection_json, final_answer)
+        all_ids = _hotel_ids(selection_json)
+        hotel_ids = mentioned or all_ids
+        if not final_answer:
+            log.warning("[%s] композер вернул пустой ответ (всё съел <think>?)", log_id)
+        log.info("[%s] готово за %.1f с: ответ %d символов, ссылок %d (упомянуто %d из %d найденных)",
+                 log_id, time.monotonic() - started, len(final_answer), len(hotel_ids),
+                 len(mentioned), len(all_ids))
         return QueryResponse(
             response=final_answer,
             hotel_ids=hotel_ids,
@@ -147,5 +171,11 @@ async def generate(req: QueryRequest):
                 "hotel_ids": hotel_ids,
             },
         )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Повторите позже. Помощник снова моет посуду. Ответит как только сможет!")
+    except Exception:
+        # Трейсбек этапа уже в логе пайплайна; здесь фиксируем итог и отдаём человеку
+        # вежливую ошибку с кодом, по которому её легко найти в docker logs.
+        log.exception("[%s] пайплайн упал через %.1f с", log_id, time.monotonic() - started)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Повторите позже. Помощник снова моет посуду. Ответит как только сможет! (код {log_id})",
+        )

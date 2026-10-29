@@ -1,5 +1,16 @@
-import asyncio, httpx, traceback, json, sys
+import asyncio, httpx, logging, time, traceback, json, sys
 from pystyle import Colors, Write
+
+# Логи пайплайна: видны в stdout контейнера (docker logs <llm>).
+log = logging.getLogger("llm.pipeline")
+
+
+def _short(value, limit: int = 500) -> str:
+    """Обрезает длинные тексты в логах; LLM_LOG_LEVEL=DEBUG печатает целиком."""
+    text = str(value)
+    if log.isEnabledFor(logging.DEBUG) or len(text) <= limit:
+        return text
+    return f"{text[:limit]}… [обрезано, всего {len(text)} символов]"
 
 
 from config import *
@@ -20,17 +31,50 @@ class LLM:
 
         self.llm_call = LLM_Call_Functions
 
-    async def pipeline(self, user_text: str) -> dict:
+    async def pipeline(self, user_text: str, log_id: str = "-") -> dict:
         async with httpx.AsyncClient(timeout = 67) as llm_client:
             hotel = "Eleon"
-            text_for_data_fetcher = await self.request_builder.llm_local_model_response_REQUEST_BUILDER(user_text)
-            if text_for_data_fetcher == '{"command": "stop"}': return await self.pipeline(user_text)
-            print(text_for_data_fetcher)
-            text_for_answer_composer = await self.data_fetcher.llm_local_model_response_DATA_FETCHER(text_for_data_fetcher)
+            log.info("[%s] вопрос пользователя: %s", log_id, _short(user_text, 300))
 
-            dict_answer = json.loads(text_for_answer_composer)
-            hotel_info_from_db = await LLM_Call_Functions.get_random_hotel_with_stars(dict_answer)
-            print(hotel_info_from_db)
+            # --- Агент 1: REQUEST_BUILDER (локальная модель) ---
+            started = time.monotonic()
+            try:
+                text_for_data_fetcher = await self.request_builder.llm_local_model_response_REQUEST_BUILDER(user_text)
+            except Exception:
+                log.exception("[%s] агент 1 REQUEST_BUILDER упал (ollama доступна? модель скачана?)", log_id)
+                raise
+            log.info("[%s] агент 1 REQUEST_BUILDER: %.1f с, ответ: %s",
+                     log_id, time.monotonic() - started, _short(text_for_data_fetcher))
+            if text_for_data_fetcher == '{"command": "stop"}': return await self.pipeline(user_text, log_id)
+
+            # --- Агент 2: DATA_FETCHER (локальная модель) ---
+            started = time.monotonic()
+            try:
+                text_for_answer_composer = await self.data_fetcher.llm_local_model_response_DATA_FETCHER(text_for_data_fetcher)
+            except Exception:
+                log.exception("[%s] агент 2 DATA_FETCHER упал (ollama доступна? модель скачана?)", log_id)
+                raise
+            log.info("[%s] агент 2 DATA_FETCHER: %.1f с, фильтры: %s",
+                     log_id, time.monotonic() - started, _short(text_for_answer_composer))
+
+            try:
+                dict_answer = json.loads(text_for_answer_composer)
+            except json.JSONDecodeError:
+                log.exception("[%s] агент 2 вернул не-JSON, разбор невозможен. Сырой ответ: %s",
+                              log_id, _short(text_for_answer_composer, 1500))
+                raise
+
+            # --- База: подбор отелей по фильтрам ---
+            started = time.monotonic()
+            try:
+                hotel_info_from_db = await LLM_Call_Functions.get_random_hotel_with_stars(dict_answer)
+            except Exception:
+                log.exception("[%s] запрос к базе отелей упал (HOTELS_DATABASE_URL верный? витрина mv_hotels_analytics есть?)", log_id)
+                raise
+            db_hotels = (hotel_info_from_db or [{}])[0].get("json_agg") or []
+            log.info("[%s] база: %.1f с, подобрано отелей: %d%s",
+                     log_id, time.monotonic() - started, len(db_hotels),
+                     "" if not db_hotels else " — " + _short(", ".join(str(h.get("hotel_name")) for h in db_hotels), 300))
 
             final_output_text = ""
             try:
@@ -81,8 +125,16 @@ class LLM:
             |AGENT-QUESTION|{text_for_data_fetcher} 
             |DATA|{final_output_text}
             """
-            
-            Text_For_User = await self.answer_composer.llm_response_ANSWER_COMPOSER(llm_client, answer_for_LLM_ANSWER_COMPOSER)
+
+            # --- Агент 3: ANSWER_COMPOSER (API) ---
+            started = time.monotonic()
+            try:
+                Text_For_User = await self.answer_composer.llm_response_ANSWER_COMPOSER(llm_client, answer_for_LLM_ANSWER_COMPOSER)
+            except Exception:
+                log.exception("[%s] агент 3 ANSWER_COMPOSER упал (ключ OPEN_ROUTER_KEY в .env? сервис доступен?)", log_id)
+                raise
+            log.info("[%s] агент 3 ANSWER_COMPOSER: %.1f с, длина ответа: %d символов",
+                     log_id, time.monotonic() - started, len(Text_For_User or ""))
 
             return {
                 "h_i_f_db": hotel_info_from_db,
