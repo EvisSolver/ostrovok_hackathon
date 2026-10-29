@@ -21,3 +21,4 @@ data/hotels_backup.json
 
 # Кэш Vite
 .vite/
+ollama-models/
