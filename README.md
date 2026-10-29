@@ -4,6 +4,10 @@
 
 ---
 
+## Видео-демонстрация проекта - https://rutube.ru/video/private/1e727013074af97e70204b9f49ea3d09/?p=Wp4GpjcAhbz58qVXV-5Efw
+
+---
+
 ## Структура репозитория
 
 ```
@@ -47,10 +51,22 @@ cd hotel-provider
 # 2. Соберите фронтенд
 npm run build
 
-# 3. Ключ API для 3-го агента (файл не хранится в git)
+# 3. Установка Ollama (для Arch Linux)
+sudo pacman -Sy ollama
+
+# 4. Запуск сервера Ollama
+ollama serve 
+
+# 5. Загрузка и запуск моделей
+ollama run qwen2.5-coder:7b
+
+# 6. Llama 3.2 (3B) — легкая универсальная модель
+ollama run llama3.2:3b
+
+# 7. Ключ API для 3-го агента (файл не хранится в git)
 cp LLM/.env.example LLM/.env   # и впишите OPEN_ROUTER_KEY
 
-# 4. Поднимите все контейнеры
+# 8. Поднимите все контейнеры
 docker compose up -d --build
 ```
 
@@ -115,26 +131,3 @@ docker compose down
   ```bash
   docker compose ps
   ```
-
-## 🛠️ Стек
-
-- **PostgreSQL + PostGIS** — база данных
-- **Python 3.12** — основная логика
-- **FastAPI** — REST API
-- **Streamlit** — веб-интерфейс
-- **Docker & Docker Compose** — контейнеризация всего проекта
-
-## 🚀 Запуск проекта
-
-(СЕНЯ - > )
-
-Открой терминал в корне проекта (где лежит `docker-compose.yml`) и выполни одну команду:
-
-```bash
-docker compose up -d --build
-
-## Что где
-127.0.0.1:8000 - api
-127.0.0.1:5432 - postgis
-127.0.0.1:8501 - streamlit
-```
