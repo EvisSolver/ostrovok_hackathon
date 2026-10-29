@@ -38,6 +38,7 @@
 - **3 реплики API** (FastAPI воркеры с автомасштабированием)
 - **LLM Microservice** на порту `8001` (3 взаимодействующих нейросетевых агента)
 - **PostgreSQL** (хранилище истории переписок)
+- **Ollama** с локальными моделями агентов 1 и 2 — модели скачиваются автоматически при первом старте (~7 ГБ) и сохраняются в volume, повторные запуски ничего не перекачивают
 
 ```bash
 # 1. Перейдите в папку сервиса
@@ -46,9 +47,25 @@ cd hotel-provider
 # 2. Соберите фронтенд
 npm run build
 
-# 3. Поднимите все контейнеры
+# 3. Ключ API для 3-го агента (файл не хранится в git)
+cp LLM/.env.example LLM/.env   # и впишите OPEN_ROUTER_KEY
+
+# 4. Поднимите все контейнеры
 docker compose up -d --build
 ```
+
+### Требования к машине
+
+- **Диск:** ~7 ГБ под модели ollama + docker-образы.
+- **VRAM (для любого GPU-режима): минимум 6 ГБ, рекомендуется 8–12 ГБ.** Обе локальные модели вместе — qwen2.5-coder:7b ≈ 4.7 ГБ и llama3.2:3b ≈ 2 ГБ плюс KV-кэш — занимают ~8 ГБ; на 6 ГБ они будут подгружаться по очереди, а при нехватке ollama выгрузит часть слоёв на CPU (медленнее, но работает).
+
+Три режима запуска, отличаются только командой:
+
+| Режим | Команда | Что нужно |
+|---|---|---|
+| **CPU** (по умолчанию) | `docker compose up -d --build` | ~10 ГБ свободной RAM, работает везде, ответы медленнее |
+| **AMD GPU** (ROCm) | `docker compose -f docker-compose.yml -f docker-compose.amd.yml up -d --build` | карта RX 6xxx/7xxx; для RX 7xxx задайте `HSA_OVERRIDE_GFX_VERSION=11.0.0` (по умолчанию стоит 10.3.0 — под RX 6xxx) |
+| **NVIDIA GPU** | `docker compose -f docker-compose.yml -f docker-compose.nvidia.yml up -d --build` | установленный [nvidia-container-toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html) |
 
 После старта перейдите в браузере:  
 👉 **http://localhost:8080**
@@ -98,7 +115,6 @@ docker compose down
   ```bash
   docker compose ps
   ```
-  =======
 
 ## 🛠️ Стек
 

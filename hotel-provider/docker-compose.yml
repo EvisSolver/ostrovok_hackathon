@@ -7,7 +7,8 @@
 #
 # Состав: nginx (статика + балансировка) -> 3 реплики API -> PostgreSQL чатов,
 # PostGIS-каталог отелей (+ разовая загрузка данных: ETL из OSM, затем описания,
-# фото и витрина mv_hotels_analytics для LLM), микросервис LLM.
+# фото и витрина mv_hotels_analytics для LLM), микросервис LLM, ollama с локальными
+# моделями (скачиваются при первом старте, ~7 ГБ — дальше лежат в volume).
 services:
   # ---- каталог отелей (PostGIS) ----
   hotels-db:
@@ -52,19 +53,49 @@ services:
     depends_on:
       etl: { condition: service_completed_successfully }
 
+  # ---- локальные модели (агенты 1 и 2) ----
+  # По умолчанию — CPU, работает на любой машине. Для GPU добавьте override-файл:
+  #   AMD:    docker compose -f docker-compose.yml -f docker-compose.amd.yml up -d --build
+  #   NVIDIA: docker compose -f docker-compose.yml -f docker-compose.nvidia.yml up -d --build
+  ollama:
+    image: ollama/ollama:latest
+    volumes: ["ollama_models:/root/.ollama"]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "ollama", "ls"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+  # Разовая докачка моделей в volume через HTTP API ollama. Идемпотентно: что уже
+  # скачано — пропускает, поэтому повторный `up` без сети тоже проходит.
+  # Нарочно лёгкий curl-образ: тянуть ради этого полный образ ollama (8+ ГБ) незачем.
+  ollama-pull:
+    image: curlimages/curl:8.10.1
+    entrypoint: ["sh", "-c"]
+    command:
+      - >
+        for m in llama3.2:3b qwen2.5-coder:7b; do
+          curl -sf http://ollama:11434/api/tags | grep -q "\"$$m\"" && echo "$$m уже скачана" && continue;
+          echo "скачиваю $$m...";
+          curl -sf -X POST http://ollama:11434/api/pull -d "{\"name\":\"$$m\"}" | grep -q success || exit 1;
+        done
+    depends_on:
+      ollama: { condition: service_healthy }
+
   # ---- нейросеть ----
   llm:
     build: ./LLM
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     restart: unless-stopped
     ports: ["8001:8001"]
     env_file: ./LLM/.env            # OPEN_ROUTER_KEY
     environment:
       HOTELS_DATABASE_URL: postgresql://otters:hackathon@hotels-db:5432/otters_db
-      OLLAMA_HOST: http://host.docker.internal:11434
+      OLLAMA_HOST: http://ollama:11434
     depends_on:
       enrich: { condition: service_completed_successfully }
+      ollama-pull: { condition: service_completed_successfully }
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/health')"]
       interval: 10s
@@ -120,3 +151,4 @@ services:
 volumes:
   hotels_pgdata:
   chat_pgdata:
+  ollama_models:

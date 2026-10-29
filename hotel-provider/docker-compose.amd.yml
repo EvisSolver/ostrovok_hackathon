@@ -1,0 +1,15 @@
+# GPU-ускорение ollama на картах AMD (ROCm).
+# Запуск: docker compose -f docker-compose.yml -f docker-compose.amd.yml up -d --build
+# Требования: VRAM 6 ГБ минимум, 8+ ГБ комфортно (см. README).
+services:
+  ollama:
+    image: ollama/ollama:rocm
+    devices:
+      - /dev/kfd
+      - /dev/dri
+    environment:
+      # Подсказка ROCm для карт, которых нет в официальном списке поддержки:
+      #   RX 6xxx (RDNA2, например 6700 XT) — 10.3.0 (стоит по умолчанию)
+      #   RX 7xxx (RDNA3) — 11.0.0
+      # Если ваша карта поддерживается официально, строка не мешает.
+      HSA_OVERRIDE_GFX_VERSION: ${HSA_OVERRIDE_GFX_VERSION:-10.3.0}

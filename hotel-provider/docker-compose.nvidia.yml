@@ -1,0 +1,6 @@
+# GPU-ускорение ollama на картах NVIDIA.
+# Запуск: docker compose -f docker-compose.yml -f docker-compose.nvidia.yml up -d --build
+# Требования: установленный nvidia-container-toolkit; VRAM 6 ГБ минимум, 8+ ГБ комфортно (см. README).
+services:
+  ollama:
+    gpus: all
