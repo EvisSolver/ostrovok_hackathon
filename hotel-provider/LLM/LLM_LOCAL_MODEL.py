@@ -7,6 +7,9 @@ class LLM_LOCAL_DATA_FETCHER:
     def __init__(self, config: dict):
         # Сохраняем промпт в атрибуты класса
         self.config = config
+        self.client = ollama.AsyncClient(
+                    host="http://host.docker.internal:11434"
+                )
 
     async def llm_local_model_response_DATA_FETCHER(self, agent_input: str) -> str:
         # Используем асинхронный клиент ollama для неблокирующего инференса
